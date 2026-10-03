@@ -1,0 +1,24 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Environment variables and credentials (SENSITIVE)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor and OS system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Optional: Express-generator specific overrides if any
+bin/
