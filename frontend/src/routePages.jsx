@@ -1,0 +1,18 @@
+import { lazy } from 'react'
+
+export const HomePage = lazy(() => import('./pages/store/HomePage'))
+export const ProductsPage = lazy(() => import('./pages/store/ProductsPage'))
+export const ProductDetailsPage = lazy(() => import('./pages/store/ProductDetailsPage'))
+export const FavoritesPage = lazy(() => import('./pages/store/FavoritesPage'))
+export const CartPage = lazy(() => import('./pages/store/CartPage'))
+export const CheckoutPage = lazy(() => import('./pages/store/CheckoutPage'))
+export const OrdersPage = lazy(() => import('./pages/store/OrdersPage'))
+export const OrderDetailsPage = lazy(() => import('./pages/store/OrderDetailsPage'))
+export const PagePlaceholder = lazy(() => import('./pages/PagePlaceholder'))
+export const LoginPage = lazy(() => import('./pages/LoginPage'))
+export const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+export const AccountPage = lazy(() => import('./pages/AccountPage'))
+export const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage'))
+export const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
+export const AdminProductsPage = lazy(() => import('./pages/admin/AdminProductsPage'))
+export const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'))

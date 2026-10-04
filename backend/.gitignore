@@ -7,6 +7,9 @@ jspm_packages/
 .env.local
 .env.*.local
 
+# Development product uploads
+uploads/
+
 # Logs
 logs
 *.log

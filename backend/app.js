@@ -3,6 +3,7 @@ var express = require('express');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var cors = require('cors');
+var bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 dotenv.config();
 const mongoose = require('mongoose');
@@ -19,6 +20,8 @@ const productRouter = require('./routers/fetch_products');
 const categoryRouter = require('./routers/category_route');
 const cartRouter = require('./routers/cart_route');
 const orderRouter = require('./routers/order_route');
+const paymentRouter = require('./routers/payment_route');
+const { processPaymentWebhook } = require('./controllers/payment_controller');
 const { uploadsDirectory } = require('./middleware/upload_images');
 
 const allowedOrigins = process.env.CORS_ORIGIN
@@ -34,6 +37,11 @@ mongoose.connect(process.env.MONGO_URI)
 
 app.use(logger('dev'));
 app.use(cors({ origin: allowedOrigins }));
+app.post(
+  '/api/payments/webhook',
+  bodyParser.raw({ type: 'application/json' }),
+  processPaymentWebhook,
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -45,6 +53,7 @@ app.use('/api/products', productRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/orders', orderRouter);
+app.use('/api/payments', paymentRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

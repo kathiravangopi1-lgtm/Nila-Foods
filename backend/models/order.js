@@ -28,6 +28,13 @@ const orderSchema = new mongoose.Schema({
   shippingCost: { type: Number, default: 0, min: 0 },
   tax: { type: Number, default: 0, min: 0 },
   total: { type: Number, required: true, min: 0 },
+  currency: { type: String, default: 'INR', uppercase: true, trim: true },
+  checkoutSessionId: { type: String, trim: true, maxlength: 100 },
+  razorpayOrderId: { type: String, trim: true },
+  razorpayPaymentId: { type: String, trim: true },
+  paymentMethod: { type: String, trim: true },
+  paymentSignature: { type: String, select: false },
+  paidAt: { type: Date },
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
@@ -41,5 +48,10 @@ const orderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index(
+  { user: 1, checkoutSessionId: 1 },
+  { unique: true, partialFilterExpression: { checkoutSessionId: { $type: 'string' } } },
+);
+orderSchema.index({ razorpayOrderId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.models.Order || mongoose.model('Order', orderSchema);

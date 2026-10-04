@@ -22,7 +22,8 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     trim: true,
   },
-  password: { type: String, required: true, select: false },
+  password: { type: String, select: false },
+  googleId: { type: String, unique: true, sparse: true, select: false },
   role: { type: String, enum: ['customer', 'admin'], default: 'customer' },
   addresses: { type: [addressSchema], default: [] },
 }, { timestamps: true });

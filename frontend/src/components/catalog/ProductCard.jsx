@@ -1,0 +1,110 @@
+import { Link, useNavigate } from 'react-router-dom'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import BellToggle from '@/components/BellToggle'
+import PulseHeart from '@/components/PulseHeart'
+import { useAuth } from '@/components/auth/authContext'
+import { useFavorites } from '@/components/favorites/favoritesContext'
+import { useToast } from '@/components/feedback/toastContext'
+import { apiRequest } from '@/lib/api'
+
+function imageUrl(value) {
+  if (!value) return ''
+  return value.startsWith('/uploads/') ? value : value
+}
+
+function hasRestockWatch(productId) {
+  try {
+    return JSON.parse(window.localStorage.getItem('nila-foods-restock-watches') || '[]').includes(productId)
+  } catch {
+    window.localStorage.removeItem('nila-foods-restock-watches')
+    return false
+  }
+}
+
+function ProductCard({ product }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { user, token } = useAuth()
+  const { favoriteIds, toggleFavorite } = useFavorites()
+  const { showToast } = useToast()
+  const isFavorite = favoriteIds.includes(product._id)
+  const addToCart = useMutation({
+    mutationFn: () => apiRequest('/cart/items', {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ productId: product._id, quantity: 1 }),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] })
+      showToast(`${product.name} added to your cart.`, 'Added to cart', 'success')
+    },
+    onError: (error) => showToast(error.message, 'Could not add item', 'error'),
+  })
+
+  const notifyWhenAvailable = (enabled) => {
+    const key = 'nila-foods-restock-watches'
+    const current = JSON.parse(window.localStorage.getItem(key) || '[]')
+    const next = enabled
+      ? [...new Set([...current, product._id])]
+      : current.filter((id) => id !== product._id)
+    window.localStorage.setItem(key, JSON.stringify(next))
+    window.dispatchEvent(new Event('nila-restock-watch-changed'))
+    showToast(
+      enabled ? 'We saved this restock reminder on this device.' : 'Restock reminder removed.',
+      enabled ? 'Reminder saved' : 'Reminder removed',
+      'success',
+    )
+  }
+
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-stone-300 bg-white p-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-stone-800 dark:bg-stone-900">
+      <Link to={`/products/${product._id}`} className="block">
+        <div className="relative aspect-square overflow-hidden rounded-xl bg-emerald-50 dark:bg-stone-800">
+          {product.images?.[0] ? (
+            <img src={imageUrl(product.images[0])} alt={product.name} loading="lazy" className="size-full object-cover transition duration-300 group-hover:scale-105" />
+          ) : (
+            <div className="grid size-full place-items-center text-4xl text-emerald-800/40">🌿</div>
+          )}
+          {product.stock <= 0 && <span className="absolute bottom-2 left-2 rounded-full bg-stone-950/85 px-2.5 py-1 text-xs font-semibold text-white">Out of stock</span>}
+        </div>
+        <div className="px-1.5 pb-1 pt-3">
+          <p className="truncate text-sm font-bold text-stone-900 dark:text-white">{product.name}</p>
+          <p className="mt-1 min-h-9 line-clamp-2 text-xs leading-5 text-stone-500 dark:text-stone-400">{product.description}</p>
+          <p className="mt-2 text-base font-extrabold text-emerald-900 dark:text-emerald-200">{product.currency === 'INR' ? '₹' : `${product.currency} `}{Number(product.price).toLocaleString('en-IN')}</p>
+        </div>
+      </Link>
+      <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
+        {product.stock > 0 ? (
+          <button
+            type="button"
+            disabled={addToCart.isPending}
+            onClick={() => user ? addToCart.mutate() : navigate('/login')}
+            className="min-h-10 flex-1 rounded-xl bg-emerald-800 px-3 text-xs font-bold text-white transition hover:bg-emerald-900 disabled:opacity-50"
+          >
+            {addToCart.isPending ? 'Adding…' : 'Add to cart'}
+          </button>
+        ) : (
+          <BellToggle
+            size="sm"
+            offLabel="Remind me"
+            onLabel="Reminder saved"
+            defaultPressed={hasRestockWatch(product._id)}
+            onChange={notifyWhenAvailable}
+            className="max-w-full"
+          />
+        )}
+        <PulseHeart
+          liked={isFavorite}
+          onChange={() => toggleFavorite(product._id)}
+          showCount={false}
+          label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          size={38}
+          likedColor="#15803d"
+          idleColor="#78716c"
+        />
+      </div>
+    </article>
+  )
+}
+
+export default ProductCard

@@ -151,6 +151,9 @@ const validateProductData = async (body, { isUpdate = false } = {}) => {
         return { error: `${field} must be a non-negative number.` };
       }
       updates[field] = Number(body[field]);
+      if (field === 'price' && Number(Number(updates[field]).toFixed(2)) !== updates[field]) {
+        return { error: 'price can have at most two decimal places.' };
+      }
       if (field === 'stock' && !Number.isInteger(updates[field])) {
         return { error: 'stock must be a whole number.' };
       }
@@ -203,7 +206,7 @@ const createProduct = async (req, res, next) => {
     const product = await Product.create({
       ...result.updates,
       images,
-      currency: result.updates.currency || process.env.DEFAULT_CURRENCY || 'USD',
+      currency: result.updates.currency || process.env.DEFAULT_CURRENCY || 'INR',
     });
     return res.status(201).json({ message: 'Product created.', data: product });
   } catch (error) {
