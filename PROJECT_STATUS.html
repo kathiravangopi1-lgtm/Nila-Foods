@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7fb">
+  <title>Nila Foods | Project Status</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #182230;
+      --muted: #667085;
+      --line: #e4e7ec;
+      --surface: #fff;
+      --canvas: #f6f7fb;
+      --brand: #5145cd;
+      --brand-soft: #eeedff;
+      --green: #087443;
+      --green-soft: #e8f7ef;
+      --amber: #9a6700;
+      --amber-soft: #fff6db;
+      --shadow: 0 12px 35px rgba(16, 24, 40, .07);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    a { color: var(--brand); }
+    .wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+
+    header {
+      padding: 48px 0 36px;
+      background:
+        radial-gradient(ellipse at 82% 15%, rgba(255,255,255,.22), transparent 32%),
+        linear-gradient(125deg, #29245f, #5145cd 62%, #7467ee);
+      color: #fff;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: #d9d5ff;
+      text-transform: uppercase;
+      letter-spacing: .13em;
+      font-size: .75rem;
+      font-weight: 800;
+    }
+
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.045em; line-height: 1.05; }
+    .hero-copy { max-width: 670px; margin: 16px 0 0; color: #e9e7ff; font-size: 1.04rem; line-height: 1.7; }
+    .hero-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+    .hero-meta span { padding: 7px 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; color: #fff; font-size: .83rem; }
+
+    main { padding: 30px 0 60px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin: -2px 0 28px;
+    }
+    .stat, .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+    .stat { padding: 18px 20px; }
+    .stat strong { display: block; font-size: 1.45rem; letter-spacing: -.03em; }
+    .stat span { display: block; margin-top: 4px; color: var(--muted); font-size: .88rem; }
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+    .panel { padding: 24px; }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+    h2 { margin: 0; font-size: 1.3rem; letter-spacing: -.025em; }
+    .panel-intro { margin: 7px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+    .badge { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; font-size: .75rem; font-weight: 800; }
+    .done-badge { background: var(--green-soft); color: var(--green); }
+    .todo-badge { background: var(--amber-soft); color: var(--amber); }
+    .group-title { margin: 23px 0 10px; color: var(--muted); font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+    .group-title:first-of-type { margin-top: 0; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    .item { display: flex; gap: 11px; padding: 12px 0; border-top: 1px solid #f0f1f4; line-height: 1.5; }
+    .item:first-child { border-top: 0; }
+    .mark { flex: 0 0 21px; width: 21px; height: 21px; display: grid; place-items: center; border-radius: 7px; margin-top: 1px; font-size: .77rem; font-weight: 900; }
+    .mark.done { color: var(--green); background: var(--green-soft); }
+    .mark.todo { color: var(--amber); background: var(--amber-soft); }
+    .item strong { display: block; font-size: .92rem; }
+    .item small { display: block; margin-top: 3px; color: var(--muted); font-size: .83rem; line-height: 1.55; }
+    .note { margin-top: 20px; padding: 14px 15px; border-radius: 11px; background: #f4f3ff; color: #393278; font-size: .88rem; line-height: 1.6; }
+    .note.warning { background: var(--amber-soft); color: #694800; }
+    .api { margin-top: 22px; }
+    .api-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-top: 15px; }
+    code { display: block; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 9px; background: #f4f5f7; color: #344054; font: 500 .8rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    footer { padding: 4px 0 34px; color: var(--muted); text-align: center; font-size: .82rem; }
+
+    @media (max-width: 760px) {
+      .wrap { width: min(100% - 28px, 560px); }
+      header { padding: 36px 0 30px; }
+      .summary { grid-template-columns: 1fr; gap: 9px; }
+      .stat { padding: 14px 16px; }
+      .columns { grid-template-columns: 1fr; }
+      .panel { padding: 20px; }
+      .api-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <p class="eyebrow">Nila Foods · Build status</p>
+      <h1>Herbal goodness, online.<br>Storefront and test checkout are ready.</h1>
+      <p class="hero-copy">A project handoff for the mobile-first Nila Foods storefront, API, and Razorpay Test Mode integration.</p>
+      <div class="hero-meta">
+        <span>React + Vite</span>
+        <span>Tailwind CSS</span>
+        <span>Redux Toolkit</span>
+        <span>TanStack Query</span>
+        <span>Express + MongoDB</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="summary" aria-label="Project summary">
+      <div class="stat"><strong>Commerce API</strong><span>Authentication, catalog, cart, reviews, orders, Test Mode payments</span></div>
+      <div class="stat"><strong>Mobile-first storefront</strong><span>Search, category filters, product detail, favourites, cart and checkout</span></div>
+      <div class="stat"><strong>Admin workspace</strong><span>Role-gated products, categories, inventory and order fulfilment</span></div>
+    </section>
+
+    <div class="columns">
+      <section class="panel" aria-labelledby="backend-title">
+        <div class="panel-head">
+          <div>
+            <h2 id="backend-title">Backend · In place</h2>
+            <p class="panel-intro">Express and Mongoose API documented in <a href="backend/README.md">backend/README.md</a>.</p>
+          </div>
+          <span class="badge done-badge">INTEGRATED</span>
+        </div>
+
+        <p class="group-title">Accounts and access</p>
+        <ul>
+          <li class="item"><span class="mark done">✓</span><div><strong>Register, sign in, and change password</strong><small>Customer-only registration, bcrypt passwords, JWT login, profile, and authenticated password update.</small></div></li>
+          <li class="item"><span class="mark done">✓</span><div><strong>Admin/customer permissions</strong><small>Protected routes distinguish the admin role from customer accounts.</small></div></li>
+        </ul>
+
+        <p class="group-title">Store operations</p>
+        <ul>
+          <li class="item"><span class="mark done">✓</span><div><strong>Product and category catalog</strong><small>Public product listing, details, filtering and pagination; admin create, update, and deactivate operations.</small></div></li>
+          <li class="item"><span class="mark done">✓</span><div><strong>Product images</strong><small>Product details and images upload together on admin create/update using multipart form-data. Files are stored locally for development.</small></div></li>
+          <li class="item"><span class="mark done">✓</span><div><strong>Cart, orders, reviews, and payments</strong><small>Authenticated cart operations, checkout, stock reservation, customer order history, reviews, secure Razorpay Test Mode verification, and signed webhooks.</small></div></li>
+        </ul>
+
+        <p class="group-title">Before production</p>
+        <ul>
+          <li class="item"><span class="mark todo">!</span><div><strong>Production payments and delivery costs</strong><small>Only Razorpay Test Mode is enabled. Configure live credentials only after production approval; shipping and tax remain zero.</small></div></li>
+          <li class="item"><span class="mark todo">!</span><div><strong>Email reset and production storage</strong><small>Email OTP reset needs an email provider; move local uploads to object storage before production.</small></div></li>
+        </ul>
+
+        <div class="note warning">Keep admin credentials and the JWT secret private. Configure real environment values locally; do not commit secrets.</div>
+      </section>
+
+      <section class="panel" aria-labelledby="frontend-title">
+        <div class="panel-head">
+          <div>
+            <h2 id="frontend-title">Frontend · Implemented</h2>
+            <p class="panel-intro">Nila Foods storefront and role-gated admin screens use the documented APIs.</p>
+          </div>
+          <span class="badge done-badge">READY FOR TESTING</span>
+        </div>
+
+        <p class="group-title">Suggested build order</p>
+        <ul>
+          <li class="item"><span class="mark done">✓</span><div><strong>Mobile catalog</strong><small>Search, category/price filtering, sorting, pagination, detail pages, and product reviews.</small></div></li>
+          <li class="item"><span class="mark done">✓</span><div><strong>Cart and checkout</strong><small>Server-backed cart, delivery address, Razorpay Checkout, payment states, order confirmation, and order history.</small></div></li>
+          <li class="item"><span class="mark done">✓</span><div><strong>Customer account</strong><small>Registration, login, account page, password change, favourites, and sign-out.</small></div></li>
+          <li class="item"><span class="mark done">✓</span><div><strong>Private admin dashboard</strong><small>Admin-only catalog/category management, image upload, stock editing, and order status controls.</small></div></li>
+          <li class="item"><span class="mark todo">!</span><div><strong>Live configuration and external services</strong><small>Add Razorpay test keys, configure the webhook tunnel, and set up mail before enabling OTP password reset.</small></div></li>
+        </ul>
+
+        <div class="note">Existing folders are under <code>frontend/src</code>: components, pages, Redux, query hooks, services, utilities, and assets. Redux Toolkit, React Redux, TanStack Query, and Tailwind are installed.</div>
+      </section>
+    </div>
+
+    <section class="panel api" aria-labelledby="api-title">
+      <h2 id="api-title">API routes the UI can connect to</h2>
+      <div class="api-grid">
+        <code>POST /api/auth/register · POST /api/auth/login · GET /api/auth/me · POST /api/auth/change-password</code>
+        <code>GET /api/products · GET /api/products/:productId</code>
+        <code>GET /api/categories · GET /api/categories/:categoryId</code>
+        <code>GET /api/cart · POST /api/cart/items · PATCH/DELETE cart items</code>
+        <code>POST /api/orders · GET /api/orders · GET /api/orders/:orderId</code>
+        <code>POST /api/payments/create-order · POST /api/payments/verify · POST /api/payments/webhook</code>
+        <code>GET/POST /api/products/:productId/reviews</code>
+        <code>Admin: POST/PATCH/DELETE products and categories; PATCH order status</code>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">Nila Foods project status · See backend/README.md for setup and Razorpay Test Mode.</footer>
+</body>
+</html>
