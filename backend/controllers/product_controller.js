@@ -33,7 +33,7 @@ const cleanupUploads = async (files, next) => {
   }
 };
 
-const getAllProducts = async (req, res, next) => {
+const getProducts = async (req, res, next, { includeInactive = false } = {}) => {
   try {
     const page = Number.parseInt(req.query.page, 10) || 1;
     const limit = Math.min(Number.parseInt(req.query.limit, 10) || 20, 100);
@@ -41,7 +41,7 @@ const getAllProducts = async (req, res, next) => {
       return res.status(400).json({ error: 'Page and limit must be positive numbers.' });
     }
 
-    const filter = { isActive: true };
+    const filter = includeInactive ? {} : { isActive: true };
     if (req.query.category) {
       if (!isValidId(req.query.category)) {
         return res.status(400).json({ error: 'Invalid category id.' });
@@ -104,6 +104,10 @@ const getAllProducts = async (req, res, next) => {
     return next(error);
   }
 };
+
+const getAllProducts = (req, res, next) => getProducts(req, res, next);
+
+const getAdminProducts = (req, res, next) => getProducts(req, res, next, { includeInactive: true });
 
 const getProductById = async (req, res, next) => {
   if (!isValidId(req.params.productId)) {
@@ -302,6 +306,7 @@ const deleteProduct = async (req, res, next) => {
 
 module.exports = {
   getAllProducts,
+  getAdminProducts,
   getProductById,
   createProduct,
   updateProduct,

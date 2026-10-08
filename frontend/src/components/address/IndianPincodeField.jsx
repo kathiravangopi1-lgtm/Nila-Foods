@@ -1,9 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/lib/api'
+import Input from '@/components/ui/Input'
 
 function IndianPincodeField({ value, onValueChange, onLocationResolved, disabled = false }) {
   const pincode = value.trim()
+  const appliedPincodeRef = useRef('')
   const lookup = useQuery({
     queryKey: ['locations', 'india-pincode', pincode],
     queryFn: () => apiRequest(`/locations/india/pincode/${pincode}`).then((result) => result.data),
@@ -12,8 +14,15 @@ function IndianPincodeField({ value, onValueChange, onLocationResolved, disabled
   })
 
   useEffect(() => {
-    if (lookup.data) onLocationResolved(lookup.data)
-  }, [lookup.data, onLocationResolved])
+    if (!/^\d{6}$/.test(pincode)) {
+      appliedPincodeRef.current = ''
+      return
+    }
+    if (lookup.data && appliedPincodeRef.current !== pincode) {
+      appliedPincodeRef.current = pincode
+      onLocationResolved(lookup.data)
+    }
+  }, [lookup.data, onLocationResolved, pincode])
 
   let statusMessage = ''
   let statusClass = 'text-stone-500 dark:text-stone-400'
@@ -30,7 +39,7 @@ function IndianPincodeField({ value, onValueChange, onLocationResolved, disabled
   return (
     <label className="flex min-w-0 flex-col gap-2">
       <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">PIN code *</span>
-      <input
+      <Input
         name="postalCode"
         type="text"
         inputMode="numeric"
@@ -42,7 +51,6 @@ function IndianPincodeField({ value, onValueChange, onLocationResolved, disabled
         value={value}
         onChange={(event) => onValueChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
         aria-describedby="indian-pincode-status"
-        className="h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none focus:border-emerald-700 disabled:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-white dark:disabled:bg-stone-900"
       />
       <span id="indian-pincode-status" aria-live="polite" className={`min-h-4 text-xs ${statusClass}`}>
         {statusMessage}

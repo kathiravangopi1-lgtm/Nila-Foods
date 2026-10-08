@@ -23,6 +23,119 @@ const rollbackStockChanges = async (changes) => {
   }
 };
 
+const rollbackStockAdjustments = async (changes, direction) => {
+  const failures = [];
+  for (const { productId, quantity } of [...changes].reverse()) {
+    try {
+      const result = await Product.updateOne(
+        { _id: productId },
+        { $inc: { stock: direction * quantity } },
+      );
+      if (result.matchedCount !== 1) {
+        throw new Error(`Could not roll back stock for product ${productId}.`);
+      }
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) {
+    throw new AggregateError(failures, 'One or more stock adjustments could not be rolled back.');
+  }
+};
+
+const cancelUnpaidCheckoutOrder = async ({ orderId, userId }) => {
+  const order = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      user: userId,
+      status: 'pending',
+      paymentStatus: { $in: ['pending', 'failed'] },
+    },
+    {
+      $set: {
+        status: 'cancelled',
+        paymentStatus: 'failed',
+      },
+    },
+    { new: true },
+  );
+
+  if (!order) {
+    const existingOrder = await Order.findOne({ _id: orderId, user: userId });
+    if (!existingOrder) return null;
+    const alreadyCancelled = existingOrder.status === 'cancelled'
+      && existingOrder.paymentStatus === 'failed';
+    return {
+      order: existingOrder,
+      cancelled: alreadyCancelled,
+      alreadyCancelled,
+    };
+  }
+
+  const quantities = new Map();
+  for (const item of order.items) {
+    if (!item.product) continue;
+    const productId = item.product.toString();
+    quantities.set(productId, (quantities.get(productId) || 0) + item.quantity);
+  }
+
+  const restoredItems = [];
+  try {
+    for (const [productId, quantity] of quantities) {
+      const result = await Product.updateOne(
+        { _id: productId },
+        { $inc: { stock: quantity } },
+      );
+      if (result.matchedCount !== 1) {
+        throw new Error(`Could not restore stock for product ${productId}.`);
+      }
+      restoredItems.push({ productId, quantity });
+    }
+
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) cart = new Cart({ user: userId, items: [] });
+    for (const item of order.items) {
+      if (!item.product) continue;
+      const productId = item.product.toString();
+      const cartItem = cart.items.find((entry) => entry.product.toString() === productId);
+      if (cartItem) cartItem.quantity += item.quantity;
+      else cart.items.push({ product: item.product, quantity: item.quantity });
+    }
+    await cart.save();
+
+    return { order, cancelled: true, alreadyCancelled: false };
+  } catch (error) {
+    let rollbackError;
+    try {
+      await rollbackStockAdjustments(restoredItems, -1);
+      const revertedOrder = await Order.findOneAndUpdate(
+        {
+          _id: order._id,
+          status: 'cancelled',
+          paymentStatus: 'failed',
+        },
+        {
+          $set: {
+            status: 'pending',
+            paymentStatus: 'pending',
+          },
+        },
+        { new: true },
+      );
+      if (!revertedOrder) {
+        rollbackError = new Error('Could not restore the checkout order after cancellation failed.');
+      }
+    } catch (errorDuringRollback) {
+      rollbackError = errorDuringRollback;
+    }
+    if (rollbackError) {
+      console.error('Failed to roll back unpaid checkout cancellation:', rollbackError);
+      throw new AggregateError([error, rollbackError], 'Checkout cancellation could not be rolled back safely.');
+    }
+    throw error;
+  }
+};
+
 const createCheckoutOrder = async ({ userId, shippingAddress, checkoutSessionId }) => {
   const existingOrder = await Order.findOne({ user: userId, checkoutSessionId });
   if (existingOrder) {
@@ -120,4 +233,4 @@ const createCheckoutOrder = async ({ userId, shippingAddress, checkoutSessionId 
   }
 };
 
-module.exports = { createCheckoutOrder };
+module.exports = { createCheckoutOrder, cancelUnpaidCheckoutOrder };

@@ -29,7 +29,10 @@ function CartPage() {
   })
   const removeItem = useMutation({
     mutationFn: (productId) => apiRequest(`/cart/items/${productId}`, { method: 'DELETE', token }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }),
+    onSuccess: () => {
+      setItemToRemove(null)
+      queryClient.invalidateQueries({ queryKey: ['cart'] })
+    },
     onError: (error) => showToast(error.message, 'Could not remove item', 'error'),
   })
   const items = useMemo(() => cartQuery.data?.items ?? [], [cartQuery.data])

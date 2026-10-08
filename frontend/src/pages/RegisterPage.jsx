@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Leaf } from 'lucide-react'
 import { useAuth } from '@/components/auth/authContext'
 import PasswordField from '@/components/auth/PasswordField'
+import Checkbox from '@/components/ui/Checkbox'
+import Input from '@/components/ui/Input'
+import Alert from '@/components/ui/Alert'
 
 function RegisterPage() {
   const { register } = useAuth()
@@ -10,6 +13,7 @@ function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [emailOffersOptIn, setEmailOffersOptIn] = useState(false)
 
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
   const submit = async (event) => {
@@ -21,7 +25,7 @@ function RegisterPage() {
     }
     setBusy(true)
     try {
-      await register({ name: form.name, email: form.email, phone: form.phone, password: form.password })
+      await register({ name: form.name, email: form.email, phone: form.phone, password: form.password, emailOffersOptIn })
       navigate('/login', { replace: true, state: { registered: true } })
     } catch (registrationError) {
       setError(registrationError.message)
@@ -43,7 +47,7 @@ function RegisterPage() {
         ].map(([name, label, type, required]) => (
           <label key={name} className="block space-y-2">
             <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">{label}</span>
-            <input name={name} type={type} value={form[name]} onChange={update} required={required} autoComplete={name} className="h-12 w-full rounded-xl border border-stone-300 bg-white px-4 text-sm outline-none focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100 dark:border-stone-700 dark:bg-stone-950 dark:text-white dark:focus:ring-emerald-950" />
+            <Input name={name} type={type} value={form[name]} onChange={update} required={required} autoComplete={name} className="h-12 px-4" />
           </label>
         ))}
         <PasswordField
@@ -64,7 +68,11 @@ function RegisterPage() {
           onChange={update}
           minLength={8}
         />
-        {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{error}</p>}
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-300 bg-stone-50 p-3 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200">
+          <Checkbox checked={emailOffersOptIn} onCheckedChange={(checked) => setEmailOffersOptIn(Boolean(checked))} className="mt-0.5" />
+          <span>Send me occasional offers and product updates by email. I can opt out later.</span>
+        </label>
+        {error && <Alert variant="destructive">{error}</Alert>}
         <button disabled={busy} className="h-12 w-full rounded-xl bg-emerald-800 text-sm font-bold text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? 'Creating account…' : 'Create account'}</button>
       </form>
       <p className="mt-5 text-center text-sm text-stone-500">Already have an account? <Link to="/login" className="font-bold text-emerald-800 dark:text-emerald-300">Sign in</Link></p>

@@ -10,10 +10,29 @@ export async function apiRequest(path, { token, ...options } = {}) {
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
-  const payload = await response.json().catch(() => ({}))
+  const responseBody = await response.text()
+  let payload = {}
+  if (responseBody) {
+    try {
+      const parsedBody = JSON.parse(responseBody)
+      payload = parsedBody && typeof parsedBody === 'object'
+        ? parsedBody
+        : { error: typeof parsedBody === 'string' ? parsedBody : '' }
+    } catch {
+      payload = { error: responseBody.slice(0, 300) }
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(payload.error || payload.message || `Request failed with status ${response.status}`)
+    const errorMessage = payload.error
+      || payload.message
+      || (response.status === 401
+        ? 'Authentication failed (401). The access token may be missing, expired, or invalid.'
+        : `Request failed with status ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`)
+    const error = new Error(errorMessage)
+    error.status = response.status
+    error.code = payload.code
+    throw error
   }
 
   return payload

@@ -86,6 +86,7 @@ app.use(function(err, req, res, next) {
     error: status >= 500 && req.app.get('env') === 'production'
       ? 'Internal Server Error'
       : err.message,
+    ...(err.apiCode ? { code: err.apiCode } : {}),
   });
 });
 

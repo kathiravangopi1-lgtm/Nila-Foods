@@ -1,5 +1,9 @@
 const Order = require('../models/order');
-const { createCheckoutOrder } = require('../services/checkout_service');
+const mongoose = require('mongoose');
+const {
+  createCheckoutOrder,
+  cancelUnpaidCheckoutOrder,
+} = require('../services/checkout_service');
 const {
   createGatewayOrder,
   fetchPayment,
@@ -28,6 +32,7 @@ const createPaymentOrder = async (req, res, next) => {
     return res.status(400).json({ error: 'A valid checkoutSessionId is required.' });
   }
 
+  let newlyCreatedCheckoutOrder;
   try {
     if (
       !process.env.RAZORPAY_KEY_ID?.startsWith('rzp_test_')
@@ -37,15 +42,22 @@ const createPaymentOrder = async (req, res, next) => {
       error.status = 503;
       throw error;
     }
-    const { order } = await createCheckoutOrder({
+    const { order, created } = await createCheckoutOrder({
       userId: req.user.id,
       shippingAddress,
       checkoutSessionId,
     });
+    if (created) newlyCreatedCheckoutOrder = order;
     if (order.paymentStatus === 'paid') {
       return res.status(200).json({
         message: 'This order has already been paid.',
         data: { orderId: order._id, paymentStatus: order.paymentStatus },
+      });
+    }
+    if (order.status !== 'pending') {
+      return res.status(409).json({
+        code: 'CHECKOUT_SESSION_CANCELLED',
+        error: 'This checkout session has already been cancelled. Start checkout again from your cart.',
       });
     }
 
@@ -53,13 +65,29 @@ const createPaymentOrder = async (req, res, next) => {
     if (!gatewayOrderId) {
       const amount = Math.round(order.total * 100);
       if (!Number.isSafeInteger(amount) || amount < 100) {
-        return res.status(400).json({ error: 'Order total must be at least ₹1.00.' });
+        const error = new Error('Order total must be at least ₹1.00.');
+        error.status = 400;
+        throw error;
       }
-      const gatewayOrder = await createGatewayOrder({
-        amount,
-        receipt: `nila-${order._id}`,
-        notes: { orderId: order._id.toString(), customerId: req.user.id },
-      });
+      let gatewayOrder;
+      try {
+        gatewayOrder = await createGatewayOrder({
+          amount,
+          receipt: `nila-${order._id}`,
+          notes: { orderId: order._id.toString(), customerId: req.user.id },
+        });
+      } catch (gatewayError) {
+        const error = new Error('Razorpay could not create the payment order. Check the backend Test Mode credentials and try again.');
+        error.status = 502;
+        error.apiCode = 'RAZORPAY_ORDER_CREATION_FAILED';
+        error.cause = gatewayError;
+        console.error('Razorpay order creation failed:', {
+          statusCode: gatewayError.statusCode,
+          code: gatewayError.error?.code,
+          description: gatewayError.error?.description,
+        });
+        throw error;
+      }
       gatewayOrderId = gatewayOrder.id;
       order.razorpayOrderId = gatewayOrderId;
       await order.save();
@@ -79,6 +107,20 @@ const createPaymentOrder = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (newlyCreatedCheckoutOrder) {
+      try {
+        await cancelUnpaidCheckoutOrder({
+          orderId: newlyCreatedCheckoutOrder._id,
+          userId: req.user.id,
+        });
+      } catch (rollbackError) {
+        console.error('Failed to release stock after payment-order creation failed:', rollbackError);
+        return next(new AggregateError(
+          [error, rollbackError],
+          'Payment-order creation failed and the reserved checkout could not be rolled back.',
+        ));
+      }
+    }
     return next(error);
   }
 };
@@ -107,6 +149,9 @@ const verifyPayment = async (req, res, next) => {
       }
       return res.status(200).json({ message: 'Payment already verified.', data: order });
     }
+    if (order.status !== 'pending') {
+      return res.status(409).json({ error: 'This checkout order is no longer awaiting payment.' });
+    }
     if (!verifyCheckoutSignature({ orderId: razorpayOrderId, paymentId: razorpayPaymentId, signature })) {
       return res.status(400).json({ error: 'Razorpay payment signature is invalid.' });
     }
@@ -124,7 +169,12 @@ const verifyPayment = async (req, res, next) => {
     }
 
     const updatedOrder = await Order.findOneAndUpdate(
-      { _id: order._id, user: req.user.id, paymentStatus: { $ne: 'paid' } },
+      {
+        _id: order._id,
+        user: req.user.id,
+        status: 'pending',
+        paymentStatus: { $in: ['pending', 'failed'] },
+      },
       {
         $set: {
           paymentStatus: 'paid',
@@ -145,6 +195,34 @@ const verifyPayment = async (req, res, next) => {
       return res.status(409).json({ error: 'Order payment state changed; reload and check your orders.' });
     }
     return res.status(200).json({ message: 'Payment verified.', data: updatedOrder });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const cancelPaymentOrder = async (req, res, next) => {
+  const { orderId } = req.body || {};
+  if (typeof orderId !== 'string' || !mongoose.Types.ObjectId.isValid(orderId)) {
+    return res.status(400).json({ error: 'A valid orderId is required.' });
+  }
+
+  try {
+    const result = await cancelUnpaidCheckoutOrder({
+      orderId,
+      userId: req.user.id,
+    });
+    if (!result) {
+      return res.status(404).json({ error: 'Checkout order not found for this account.' });
+    }
+    if (!result.cancelled) {
+      return res.status(409).json({
+        error: 'This order can no longer be cancelled as an unpaid checkout.',
+      });
+    }
+    return res.status(200).json({
+      message: result.alreadyCancelled ? 'Checkout was already cancelled.' : 'Checkout cancelled and items returned to your cart.',
+      data: result.order,
+    });
   } catch (error) {
     return next(error);
   }
@@ -185,7 +263,11 @@ const processPaymentWebhook = async (req, res, next) => {
         return res.status(400).json({ error: 'Captured payment amount does not match the order.' });
       }
       await Order.updateOne(
-        { _id: order._id, paymentStatus: { $ne: 'paid' } },
+        {
+          _id: order._id,
+          status: 'pending',
+          paymentStatus: { $in: ['pending', 'failed'] },
+        },
         {
           $set: {
             paymentStatus: 'paid',
@@ -197,10 +279,7 @@ const processPaymentWebhook = async (req, res, next) => {
         },
       );
     } else {
-      await Order.updateOne(
-        { _id: order._id, paymentStatus: { $nin: ['paid', 'refunded'] } },
-        { $set: { paymentStatus: 'failed' } },
-      );
+      await cancelUnpaidCheckoutOrder({ orderId: order._id, userId: order.user });
     }
     return res.status(200).json({ received: true });
   } catch (error) {
@@ -208,4 +287,9 @@ const processPaymentWebhook = async (req, res, next) => {
   }
 };
 
-module.exports = { createPaymentOrder, verifyPayment, processPaymentWebhook };
+module.exports = {
+  createPaymentOrder,
+  verifyPayment,
+  cancelPaymentOrder,
+  processPaymentWebhook,
+};

@@ -4,6 +4,8 @@ import { Leaf, LockKeyhole } from 'lucide-react'
 import { useAuth } from '@/components/auth/authContext'
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton'
 import PasswordField from '@/components/auth/PasswordField'
+import Input from '@/components/ui/Input'
+import Alert from '@/components/ui/Alert'
 
 function LoginPage() {
   const { login, googleLogin, restoreError } = useAuth()
@@ -88,14 +90,14 @@ function LoginPage() {
         <form onSubmit={submitLogin} className="mt-8 space-y-5">
           <div>
             <label htmlFor="email" className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-200">Email address</label>
-            <input
+            <Input
               id="email"
               type="email"
               autoComplete="email"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="h-12 w-full rounded-xl border border-stone-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 dark:border-stone-700 dark:bg-stone-950 dark:text-white dark:focus:ring-emerald-950"
+              className="h-12 px-4"
               placeholder="you@example.com"
             />
           </div>
@@ -108,7 +110,7 @@ function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
             leadingIcon={LockKeyhole}
           />
-          {(error || restoreError) && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{error || restoreError}</p>}
+          {(error || restoreError) && <Alert variant="destructive">{error || restoreError}</Alert>}
           <button
             type="submit"
             disabled={isSubmitting}

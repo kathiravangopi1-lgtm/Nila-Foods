@@ -4,7 +4,7 @@ import { ToastContext } from './toastContext'
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
-  const [toastTop, setToastTop] = useState(88)
+  const [toastTop, setToastTop] = useState(112)
 
   const dismissToast = useCallback((id) => {
     setToasts((current) => current.filter((toast) => toast.id !== id))
@@ -25,7 +25,7 @@ export function ToastProvider({ children }) {
     if (!header) return undefined
 
     const updateToastPosition = () => {
-      setToastTop(Math.ceil(header.getBoundingClientRect().bottom) + 12)
+      setToastTop(Math.max(Math.ceil(header.getBoundingClientRect().bottom) + 24, 112))
     }
     updateToastPosition()
     const resizeObserver = new ResizeObserver(updateToastPosition)

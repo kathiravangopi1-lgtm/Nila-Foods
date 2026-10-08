@@ -4,6 +4,9 @@ import { Search, SlidersHorizontal } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import ProductCard from '@/components/catalog/ProductCard'
 import SelectField from '@/components/ui/SelectField'
+import Pagination from '@/components/ui/Pagination'
+import { ProductSkeletonGrid } from '@/components/ui/Skeleton'
+import Input from '@/components/ui/Input'
 import { apiRequest } from '@/lib/api'
 
 function hasRestockWatches() {
@@ -112,9 +115,9 @@ function ProductsPage() {
       <div className="grid items-end gap-4 rounded-2xl border border-stone-300 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="flex min-w-0 flex-col gap-2">
           <label htmlFor="catalog-search" className="min-h-5 text-sm font-semibold leading-5 text-stone-700 dark:text-stone-200">Search products</label>
-          <form onSubmit={submitSearch} className="flex h-11 min-w-0 items-center rounded-xl border border-stone-300 bg-stone-50 px-3 dark:border-stone-700 dark:bg-stone-950">
+          <form onSubmit={submitSearch} className="flex h-11 min-w-0 items-center rounded-xl border border-stone-300 bg-stone-50 px-3 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-100 dark:border-stone-700 dark:bg-stone-950 dark:focus-within:ring-emerald-950">
             <Search aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
-            <input id="catalog-search" aria-label="Search products" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search herbal oils, powders, sathu maavu…" className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none dark:text-white" />
+            <Input id="catalog-search" aria-label="Search products" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search herbal oils, powders, sathu maavu…" className="!h-full !min-w-0 !flex-1 !rounded-none !border-0 !bg-transparent !px-3 !shadow-none !outline-none focus:!border-0 focus:!ring-0 dark:!bg-transparent" />
             <button className="shrink-0 rounded-lg bg-emerald-800 px-4 py-2 text-xs font-bold text-white">Search</button>
           </form>
         </div>
@@ -133,17 +136,17 @@ function ProductsPage() {
           />
           <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700 dark:text-stone-200">
             <span className="flex min-h-5 items-center gap-2 leading-5"><SlidersHorizontal aria-hidden="true" className="size-4" /> Minimum price</span>
-            <input type="number" min="0" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} onBlur={() => updateFilters({ minPrice })} placeholder="₹0" className="h-11 w-full rounded-xl border border-stone-300 bg-stone-50 px-3 text-sm outline-none focus:border-emerald-700 dark:border-stone-700 dark:bg-stone-950 dark:text-white" />
+            <Input type="number" min="0" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} onBlur={() => updateFilters({ minPrice })} placeholder="₹0" className="bg-stone-50 dark:bg-stone-950" />
           </label>
           <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700 dark:text-stone-200">
             <span className="min-h-5 leading-5">Maximum price</span>
-            <input type="number" min="0" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} onBlur={() => updateFilters({ maxPrice })} placeholder="No maximum" className="h-11 w-full rounded-xl border border-stone-300 bg-stone-50 px-3 text-sm outline-none focus:border-emerald-700 dark:border-stone-700 dark:bg-stone-950 dark:text-white" />
+            <Input type="number" min="0" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} onBlur={() => updateFilters({ maxPrice })} placeholder="No maximum" className="bg-stone-50 dark:bg-stone-950" />
           </label>
           <button type="button" onClick={() => { setSearchInput(''); setMinPrice(''); setMaxPrice(''); setSort('newest'); setCategory(''); setSearchParams({}) }} className="h-11 rounded-xl border border-stone-300 px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800">Clear filters</button>
         </div>
       </div>
 
-      {productsQuery.isLoading && <p className="py-14 text-center text-sm text-stone-500">Finding your products…</p>}
+      {productsQuery.isLoading && <ProductSkeletonGrid />}
       {category && categoriesQuery.isSuccess && !selectedCategoryId && <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">That category is not available yet. Browse all products or choose an active category.</p>}
       {productsQuery.isError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{productsQuery.error.message}</p>}
       {productsQuery.isSuccess && productsQuery.data.data.length === 0 && (
@@ -153,16 +156,17 @@ function ProductsPage() {
         </div>
       )}
       {productsQuery.data?.data?.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),240px))] justify-center gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),240px))] justify-start gap-5">
           {productsQuery.data.data.map((product) => <ProductCard key={product._id} product={product} />)}
         </div>
       )}
-      {productsQuery.data?.pagination?.pages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <button type="button" disabled={Number(searchParams.get('page') || 1) <= 1} onClick={() => updateFilters({ page: String(Number(searchParams.get('page') || 1) - 1) })} className="rounded-xl border border-stone-300 px-4 py-2 text-sm disabled:opacity-40 dark:border-stone-700">Previous</button>
-          <span className="text-sm text-stone-500">Page {productsQuery.data.pagination.page} of {productsQuery.data.pagination.pages}</span>
-          <button type="button" disabled={productsQuery.data.pagination.page >= productsQuery.data.pagination.pages} onClick={() => updateFilters({ page: String(productsQuery.data.pagination.page + 1) })} className="rounded-xl border border-stone-300 px-4 py-2 text-sm disabled:opacity-40 dark:border-stone-700">Next</button>
-        </div>
+      {productsQuery.data?.pagination && (
+        <Pagination
+          page={productsQuery.data.pagination.page}
+          pages={productsQuery.data.pagination.pages}
+          onPageChange={(page) => updateFilters({ page: String(page) })}
+          className="pt-2"
+        />
       )}
     </section>
   )

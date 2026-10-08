@@ -31,7 +31,7 @@ function ProductRail({ title, subtitle, sort = 'newest' }) {
       {productsQuery.isLoading && <p className="px-5 pb-6 text-sm text-stone-500">Loading products…</p>}
       {productsQuery.isError && <p role="alert" className="px-5 pb-6 text-sm text-rose-700">{productsQuery.error.message}</p>}
       {productsQuery.isSuccess && !productsQuery.data.length && <p className="px-5 pb-6 text-sm text-stone-500">New products are being prepared. Please check back soon.</p>}
-      {!!productsQuery.data?.length && <div className="grid grid-cols-2 gap-3 px-5 pb-5 sm:grid-cols-3 lg:grid-cols-6 sm:px-6">{productsQuery.data.map((product) => <ProductCard key={product._id} product={product} />)}</div>}
+      {!!productsQuery.data?.length && <div className="grid grid-cols-2 gap-4 px-5 pb-5 sm:grid-cols-3 lg:grid-cols-6 lg:gap-5 sm:px-6">{productsQuery.data.map((product) => <ProductCard key={product._id} product={product} />)}</div>}
     </section>
   )
 }
@@ -101,7 +101,6 @@ function HomePage() {
       </div>
 
       <ProductRail title="Loved at Nila Foods" subtitle="Customer favourites for everyday care" />
-      <ProductRail title="Everyday essentials" subtitle="Thoughtful choices for your home" sort="price-asc" />
     </div>
   )
 }

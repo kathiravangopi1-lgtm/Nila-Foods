@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/components/auth/authContext'
 import { useToast } from '@/components/feedback/toastContext'
 import { apiRequest } from '@/lib/api'
+import Input from '@/components/ui/Input'
+import Checkbox from '@/components/ui/Checkbox'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import LocationField from '@/components/address/LocationField'
 import IndianPincodeField from '@/components/address/IndianPincodeField'
@@ -38,6 +40,7 @@ function AccountPage() {
     name: user.name || '',
     email: user.email || '',
     phone: user.phone || '',
+    emailOffersOptIn: Boolean(user.emailOffersOptIn),
   })
 
   const addressesQuery = useQuery({
@@ -175,17 +178,21 @@ function AccountPage() {
           ].map(([name, label, type]) => (
             <label key={name} className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700 dark:text-stone-200">
               {label}
-              <input
+              <Input
                 type={type}
                 required={name !== 'phone'}
                 autoComplete={name}
                 value={profileForm[name]}
                 onChange={(event) => setProfileForm((current) => ({ ...current, [name]: event.target.value }))}
-                className="h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm font-normal outline-none focus:border-emerald-700 dark:border-stone-700 dark:bg-stone-950 dark:text-white"
+                className="font-normal"
               />
             </label>
           ))}
         </div>
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-stone-300 bg-stone-50 p-3 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200">
+          <Checkbox checked={profileForm.emailOffersOptIn} onCheckedChange={(checked) => setProfileForm((current) => ({ ...current, emailOffersOptIn: Boolean(checked) }))} className="mt-0.5" />
+          <span>Send me occasional offers and product updates by email.</span>
+        </label>
         <button
           type="submit"
           disabled={saveProfile.isPending}
@@ -223,7 +230,7 @@ function AccountPage() {
               {addressFields.map(([name, label, required]) => (
                 <label key={name} className={`flex min-w-0 flex-col gap-2 ${name.startsWith('addressLine') ? 'sm:col-span-2' : ''}`}>
                   <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">{label}{required ? ' *' : ''}</span>
-                  <input
+                  <Input
                     name={name}
                     type="text"
                     autoComplete={name}

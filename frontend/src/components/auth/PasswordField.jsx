@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import Input from '@/components/ui/Input'
 
 function PasswordField({
   id,
@@ -23,7 +24,7 @@ function PasswordField({
         {LeadingIcon && (
           <LeadingIcon aria-hidden="true" className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
         )}
-        <input
+        <Input
           id={id}
           name={name}
           type={isVisible ? 'text' : 'password'}
@@ -32,7 +33,7 @@ function PasswordField({
           minLength={minLength}
           value={value}
           onChange={onChange}
-          className={`h-12 w-full rounded-xl border border-stone-300 bg-white pr-12 text-sm outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 dark:border-stone-700 dark:bg-stone-950 dark:text-white dark:focus:ring-emerald-950 ${LeadingIcon ? 'pl-11' : 'pl-4'}`}
+          className={`h-12 pr-12 ${LeadingIcon ? 'pl-11' : 'pl-4'}`}
         />
         <button
           type="button"

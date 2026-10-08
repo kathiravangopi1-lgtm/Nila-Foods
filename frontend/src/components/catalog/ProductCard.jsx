@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import BellToggle from '@/components/BellToggle'
-import PulseHeart from '@/components/PulseHeart'
+import FavoriteButton from '@/components/catalog/FavoriteButton'
+import RestockCheckbox from '@/components/catalog/RestockCheckbox'
 import { useAuth } from '@/components/auth/authContext'
 import { useFavorites } from '@/components/favorites/favoritesContext'
 import { useToast } from '@/components/feedback/toastContext'
@@ -10,15 +10,6 @@ import { apiRequest } from '@/lib/api'
 function imageUrl(value) {
   if (!value) return ''
   return value.startsWith('/uploads/') ? value : value
-}
-
-function hasRestockWatch(productId) {
-  try {
-    return JSON.parse(window.localStorage.getItem('nila-foods-restock-watches') || '[]').includes(productId)
-  } catch {
-    window.localStorage.removeItem('nila-foods-restock-watches')
-    return false
-  }
 }
 
 function ProductCard({ product }) {
@@ -33,7 +24,9 @@ function ProductCard({ product }) {
     queryFn: () => apiRequest('/cart', { token }).then((result) => result.data),
     enabled: Boolean(user),
   })
-  const cartQuantity = cartQuery.data?.items.find((item) => item.product._id === product._id)?.quantity || 0
+  const cartQuantity = user
+    ? cartQuery.data?.items?.find((item) => item.product?._id === product._id)?.quantity || 0
+    : 0
   const addToCart = useMutation({
     mutationFn: () => apiRequest('/cart/items', {
       method: 'POST',
@@ -59,23 +52,8 @@ function ProductCard({ product }) {
     onError: (error) => showToast(error.message, 'Could not update cart', 'error'),
   })
 
-  const notifyWhenAvailable = (enabled) => {
-    const key = 'nila-foods-restock-watches'
-    const current = JSON.parse(window.localStorage.getItem(key) || '[]')
-    const next = enabled
-      ? [...new Set([...current, product._id])]
-      : current.filter((id) => id !== product._id)
-    window.localStorage.setItem(key, JSON.stringify(next))
-    window.dispatchEvent(new Event('nila-restock-watch-changed'))
-    showToast(
-      enabled ? 'We saved this restock reminder on this device.' : 'Restock reminder removed.',
-      enabled ? 'Reminder saved' : 'Reminder removed',
-      'success',
-    )
-  }
-
   return (
-    <article className="group relative overflow-hidden rounded-2xl border border-stone-300 bg-white p-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-stone-800 dark:bg-stone-900">
+    <article className="group relative overflow-hidden rounded-2xl border border-stone-300 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-stone-800 dark:bg-stone-900">
       <Link to={`/products/${product._id}`} className="block">
         <div className="relative aspect-square overflow-hidden rounded-xl bg-emerald-50 dark:bg-stone-800">
           {product.images?.[0] ? (
@@ -85,13 +63,13 @@ function ProductCard({ product }) {
           )}
           {product.stock <= 0 && <span className="absolute bottom-2 left-2 rounded-full bg-stone-950/85 px-2.5 py-1 text-xs font-semibold text-white">Out of stock</span>}
         </div>
-        <div className="px-1.5 pb-1 pt-3">
+        <div className="px-1 pb-2 pt-4">
           <p className="truncate text-sm font-bold text-stone-900 dark:text-white">{product.name}</p>
           <p className="mt-1 min-h-9 line-clamp-2 text-xs leading-5 text-stone-500 dark:text-stone-400">{product.description}</p>
           <p className="mt-2 text-base font-extrabold text-emerald-900 dark:text-emerald-200">{product.currency === 'INR' ? '₹' : `${product.currency} `}{Number(product.price).toLocaleString('en-IN')}</p>
         </div>
       </Link>
-      <div className="flex items-center gap-2 px-1.5 pb-1.5">
+      <div className="flex items-center gap-2 px-1 pb-1">
         {product.stock > 0 ? (
           cartQuantity > 0 ? (
             <div className="flex min-h-10 flex-1 items-center justify-between rounded-xl bg-emerald-800 px-2 text-white">
@@ -126,24 +104,13 @@ function ProductCard({ product }) {
             </button>
           )
         ) : (
-          <BellToggle
-            size="sm"
-            offLabel="Remind me"
-            onLabel="Reminder saved"
-            defaultPressed={hasRestockWatch(product._id)}
-            onChange={notifyWhenAvailable}
-            className="max-w-full"
-          />
+          <RestockCheckbox product={product} compact />
         )}
-        <PulseHeart
+        <FavoriteButton
           liked={isFavorite}
           onChange={() => toggleFavorite(product._id)}
-          showCount={false}
           label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           size={42}
-          pillColor="transparent"
-          likedColor="#d946ef"
-          idleColor="#78716c"
         />
       </div>
     </article>

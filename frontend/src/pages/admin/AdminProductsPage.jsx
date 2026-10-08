@@ -6,9 +6,15 @@ import { useToast } from '@/components/feedback/toastContext'
 import SelectField from '@/components/ui/SelectField'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import { apiRequest } from '@/lib/api'
-import { formatMoney, resolveImageUrl } from '@/lib/format'
+import { resolveImageUrl } from '@/lib/format'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
+import FileAttachmentList from '@/components/ui/FileAttachmentList'
+import Pagination from '@/components/ui/Pagination'
+import Alert from '@/components/ui/Alert'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 
-const emptyForm = { name: '', sku: '', description: '', price: '', stock: '', category: '', imageFiles: null }
+const emptyForm = { name: '', sku: '', description: '', price: '', stock: '', category: '', imageFiles: [] }
 
 function AdminProductsPage() {
   const { token } = useAuth()
@@ -20,10 +26,12 @@ function AdminProductsPage() {
   const [productToDeactivate, setProductToDeactivate] = useState(null)
   const [categoryToDeactivate, setCategoryToDeactivate] = useState(null)
   const [error, setError] = useState('')
+  const [productPage, setProductPage] = useState(1)
+  const [catalogEdits, setCatalogEdits] = useState({})
 
   const productsQuery = useQuery({
-    queryKey: ['products', 'admin'],
-    queryFn: () => apiRequest('/products?limit=100', { token }).then((result) => result.data),
+    queryKey: ['products', 'admin', productPage],
+    queryFn: () => apiRequest(`/products/admin/catalog?page=${productPage}&limit=10`, { token }),
   })
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -55,6 +63,30 @@ function AdminProductsPage() {
       showToast(editingId ? 'Product updated.' : 'Product created.', 'Catalog saved', 'success')
     },
     onError: (mutationError) => setError(mutationError.message),
+  })
+  const updateCatalogItem = useMutation({
+    mutationFn: ({ id, price, stock }) => apiRequest(`/products/${id}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ price: Number(price), stock: Number(stock) }),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      showToast('Price and stock saved.', 'Catalog updated', 'success')
+    },
+    onError: (mutationError) => showToast(mutationError.message, 'Could not update catalog', 'error'),
+  })
+  const setProductActive = useMutation({
+    mutationFn: ({ id, isActive }) => apiRequest(`/products/${id}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ isActive }),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      showToast('Product visibility updated.', 'Catalog updated', 'success')
+    },
+    onError: (mutationError) => showToast(mutationError.message, 'Could not update product', 'error'),
   })
   const deleteProduct = useMutation({
     mutationFn: (id) => apiRequest(`/products/${id}`, { method: 'DELETE', token }),
@@ -97,12 +129,27 @@ function AdminProductsPage() {
       price: String(product.price),
       stock: String(product.stock),
       category: typeof product.category === 'object' ? product.category._id : product.category,
-      imageFiles: null,
+      imageFiles: [],
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const updateField = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
+  const addImageFiles = (event) => {
+    const selectedFiles = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (!selectedFiles.length) return
+    if (selectedFiles.some((file) => file.size > 5 * 1024 * 1024)) {
+      setError('Each product image must be 5 MB or smaller.')
+      return
+    }
+    if (form.imageFiles.length + selectedFiles.length > 8) {
+      setError('A product can have at most 8 images.')
+      return
+    }
+    setError('')
+    setForm((current) => ({ ...current, imageFiles: [...current.imageFiles, ...selectedFiles] }))
+  }
 
   return (
     <section className="space-y-6">
@@ -112,15 +159,16 @@ function AdminProductsPage() {
         <form onSubmit={(event) => { event.preventDefault(); saveProduct.mutate() }} className="space-y-4 rounded-2xl border border-stone-300 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
           <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold">{editingId ? 'Edit product' : 'Add a product'}</h2>{editingId && <button type="button" onClick={() => { setEditingId(''); setForm(emptyForm) }} className="text-sm font-semibold text-stone-500">Cancel edit</button>}</div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5 text-xs font-semibold sm:col-span-2">Product name<input required name="name" value={form.name} onChange={updateField} className="mt-1 h-11 w-full rounded-xl border border-stone-300 px-3 text-sm dark:border-stone-700 dark:bg-stone-950" /></label>
-            <label className="space-y-1.5 text-xs font-semibold">SKU<input required name="sku" value={form.sku} onChange={updateField} className="mt-1 h-11 w-full rounded-xl border border-stone-300 px-3 text-sm uppercase dark:border-stone-700 dark:bg-stone-950" /></label>
-            <label className="space-y-1.5 text-xs font-semibold">Price (₹)<input required name="price" type="number" min="0.01" step="0.01" value={form.price} onChange={updateField} className="mt-1 h-11 w-full rounded-xl border border-stone-300 px-3 text-sm dark:border-stone-700 dark:bg-stone-950" /></label>
-            <label className="space-y-1.5 text-xs font-semibold">Stock<input name="stock" type="number" min="0" step="1" value={form.stock} onChange={updateField} className="mt-1 h-11 w-full rounded-xl border border-stone-300 px-3 text-sm dark:border-stone-700 dark:bg-stone-950" /></label>
+            <label className="space-y-1.5 text-xs font-semibold sm:col-span-2">Product name<Input required name="name" value={form.name} onChange={updateField} className="mt-1" /></label>
+            <label className="space-y-1.5 text-xs font-semibold">SKU<Input required name="sku" value={form.sku} onChange={updateField} className="mt-1 uppercase" /></label>
+            <label className="space-y-1.5 text-xs font-semibold">Price (₹)<Input required name="price" type="number" min="0.01" step="0.01" value={form.price} onChange={updateField} className="mt-1" /></label>
+            <label className="space-y-1.5 text-xs font-semibold">Stock<Input name="stock" type="number" min="0" step="1" value={form.stock} onChange={updateField} className="mt-1" /></label>
             <SelectField label="Category" labelClassName="text-xs" value={form.category} options={(categoriesQuery.data || []).map((category) => ({ value: category._id, label: category.name }))} onChange={(category) => setForm((current) => ({ ...current, category }))} placeholder="Choose category" className="gap-1.5" />
-            <label className="space-y-1.5 text-xs font-semibold sm:col-span-2">Description<textarea required name="description" rows="3" value={form.description} onChange={updateField} className="mt-1 w-full rounded-xl border border-stone-300 p-3 text-sm dark:border-stone-700 dark:bg-stone-950" /></label>
-            <label className="cursor-pointer space-y-1.5 text-xs font-semibold sm:col-span-2">Product photos<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => setForm((current) => ({ ...current, imageFiles: event.target.files }))} className="mt-1 block min-h-11 w-full rounded-xl border border-stone-300 p-2 text-sm dark:border-stone-700" /><span className="block font-normal text-stone-500">Up to 8 images, 5 MB each. Existing photos are retained when editing.</span></label>
+            <label className="space-y-1.5 text-xs font-semibold sm:col-span-2">Description<Textarea required name="description" rows="3" value={form.description} onChange={updateField} className="mt-1" /></label>
+            <label className="cursor-pointer space-y-1.5 text-xs font-semibold sm:col-span-2">Product photos<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={addImageFiles} className="mt-1 block min-h-11 w-full cursor-pointer rounded-xl border border-stone-300 bg-white p-2 text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-emerald-800 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-emerald-900 dark:border-stone-700 dark:bg-stone-950" /><span className="block font-normal text-stone-500">Choose up to 8 images (JPEG, PNG, WebP, or GIF), 5 MB each. Existing photos are retained when editing.</span></label>
           </div>
-          {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">{error}</p>}
+          <FileAttachmentList files={form.imageFiles} onRemove={(index) => setForm((current) => ({ ...current, imageFiles: current.imageFiles.filter((_, fileIndex) => fileIndex !== index) }))} />
+          {error && <Alert variant="destructive">{error}</Alert>}
           <button disabled={saveProduct.isPending || !form.category} className="cursor-pointer inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-800 px-4 text-sm font-bold text-white disabled:opacity-50"><Plus className="size-4" />{saveProduct.isPending ? 'Saving…' : editingId ? 'Save product' : 'Create product'}</button>
         </form>
 
@@ -128,7 +176,7 @@ function AdminProductsPage() {
           <h2 className="text-lg font-bold">Product categories</h2>
           <p className="mt-1 text-sm text-stone-500">Add a category before assigning products.</p>
           <div className="mt-4 flex gap-2">
-            <input required value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="e.g. Herbal oils" className="h-11 min-w-0 flex-1 rounded-xl border border-stone-300 px-3 text-sm dark:border-stone-700 dark:bg-stone-950" />
+            <Input required value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="e.g. Herbal oils" className="min-w-0 flex-1" />
             <button disabled={createCategory.isPending} className="rounded-xl bg-emerald-800 px-4 text-sm font-bold text-white">Add</button>
           </div>
           <ul className="mt-4 space-y-2">
@@ -151,16 +199,30 @@ function AdminProductsPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Catalog</h2>
-        {productsQuery.isLoading && <p className="text-sm text-stone-500">Loading products…</p>}
-        {productsQuery.isError && <p role="alert" className="text-sm text-rose-700">{productsQuery.error.message}</p>}
-        {productsQuery.data?.map((product) => (
-          <article key={product._id} className="flex items-center gap-3 rounded-xl border border-stone-300 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-            {product.images?.[0] ? <img src={resolveImageUrl(product.images[0])} alt="" className="size-14 rounded-lg object-cover" /> : <div className="grid size-14 place-items-center rounded-lg bg-emerald-50">🌿</div>}
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{product.name}</p><p className="mt-1 text-xs text-stone-500">{product.sku} · {product.stock} in stock · {formatMoney(product.price, product.currency)}</p></div>
-            <button type="button" aria-label={`Edit ${product.name}`} onClick={() => editProduct(product)} className="grid size-9 place-items-center rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800"><Pencil className="size-4" /></button>
-            <button type="button" aria-label={`Deactivate ${product.name}`} onClick={() => setProductToDeactivate(product)} className="grid size-9 place-items-center rounded-lg text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"><Trash2 className="size-4" /></button>
-          </article>
-        ))}
+        {productsQuery.isLoading && <p role="status" className="text-sm text-stone-500">Loading products…</p>}
+        {productsQuery.isError && <Alert variant="destructive">{productsQuery.error.message}</Alert>}
+        {productsQuery.isSuccess && productsQuery.data.data.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-500 dark:border-stone-700">
+            No products are in the catalog yet.
+          </p>
+        )}
+        {!!productsQuery.data?.data?.length && (
+          <Table>
+            <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Inventory</TableHead><TableHead>Price</TableHead><TableHead>Visibility</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {productsQuery.data.data.map((product) => (
+                <TableRow key={product._id}>
+                  <TableCell><div className="flex items-center gap-3">{product.images?.[0] ? <img src={resolveImageUrl(product.images[0])} alt="" className="size-12 rounded-lg object-cover" /> : <div className="grid size-12 place-items-center rounded-lg bg-emerald-50">🌿</div>}<div className="min-w-0"><p className="truncate font-bold">{product.name}</p><p className="text-xs text-stone-500">{product.sku}</p></div></div></TableCell>
+                  <TableCell><Input aria-label={`Stock for ${product.name}`} type="number" min="0" step="1" value={catalogEdits[product._id]?.stock ?? product.stock} onChange={(event) => setCatalogEdits((current) => ({ ...current, [product._id]: { ...current[product._id], stock: event.target.value } }))} className="h-9 min-w-24" /></TableCell>
+                  <TableCell><Input aria-label={`Price for ${product.name}`} type="number" min="0.01" step="0.01" value={catalogEdits[product._id]?.price ?? product.price} onChange={(event) => setCatalogEdits((current) => ({ ...current, [product._id]: { ...current[product._id], price: event.target.value } }))} className="h-9 min-w-28" /></TableCell>
+                  <TableCell><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${product.isActive ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'}`}>{product.isActive ? 'Active' : 'Inactive'}</span></TableCell>
+                  <TableCell><div className="flex gap-1"><button type="button" disabled={updateCatalogItem.isPending} onClick={() => updateCatalogItem.mutate({ id: product._id, price: catalogEdits[product._id]?.price ?? product.price, stock: catalogEdits[product._id]?.stock ?? product.stock })} className="rounded-lg bg-emerald-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Save</button><button type="button" aria-label={`Edit details for ${product.name}`} onClick={() => editProduct(product)} className="grid size-9 place-items-center rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800"><Pencil className="size-4" /></button>{product.isActive ? <button type="button" aria-label={`Deactivate ${product.name}`} onClick={() => setProductToDeactivate(product)} className="grid size-9 place-items-center rounded-lg text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"><Trash2 className="size-4" /></button> : <button type="button" onClick={() => setProductActive.mutate({ id: product._id, isActive: true })} className="rounded-lg px-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 dark:text-emerald-300">Reactivate</button>}</div></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        <Pagination page={productsQuery.data?.pagination?.page || productPage} pages={productsQuery.data?.pagination?.pages || 1} onPageChange={setProductPage} />
       </section>
       <ConfirmationDialog
         open={Boolean(productToDeactivate)}

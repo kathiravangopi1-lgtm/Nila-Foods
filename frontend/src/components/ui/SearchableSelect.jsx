@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useMemo } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Combobox } from '@base-ui/react/combobox'
 
@@ -14,6 +14,19 @@ function SearchableSelect({
   disabled = false,
 }) {
   const id = useId()
+  const availableOptions = value && !options.some((option) => (
+    (typeof option === 'string' ? option : option.value) === value
+  ))
+    ? [...options, value]
+    : options
+  const optionsKey = JSON.stringify(availableOptions)
+  const normalizedOptions = useMemo(() => JSON.parse(optionsKey).map((option) => (
+    typeof option === 'string' ? { value: option, label: option } : option
+  )), [optionsKey])
+  const selectedOption = useMemo(
+    () => normalizedOptions.find((option) => option.value === value) || null,
+    [normalizedOptions, value],
+  )
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -21,9 +34,10 @@ function SearchableSelect({
         {label}{required ? ' *' : ''}
       </label>
       <Combobox.Root
-        items={options}
-        value={value || null}
-        onValueChange={(nextValue) => onValueChange(nextValue || '')}
+        items={normalizedOptions}
+        value={selectedOption}
+        onValueChange={(nextValue) => onValueChange(nextValue?.value || '')}
+        itemToStringLabel={(option) => option.label}
         onInputValueChange={onInputValueChange}
         autoHighlight
       >
@@ -53,11 +67,11 @@ function SearchableSelect({
               <Combobox.List className="max-h-[min(18rem,var(--available-height))] overflow-y-auto p-1 outline-none">
                 {(option) => (
                   <Combobox.Item
-                    key={option}
+                    key={option.value}
                     value={option}
                     className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm outline-none data-highlighted:bg-emerald-50 data-highlighted:text-emerald-950 dark:data-highlighted:bg-emerald-950 dark:data-highlighted:text-emerald-100"
                   >
-                    <span className="min-w-0 flex-1 truncate">{option}</span>
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
                     <Combobox.ItemIndicator>
                       <Check aria-hidden="true" className="size-4 text-emerald-800 dark:text-emerald-300" />
                     </Combobox.ItemIndicator>

@@ -142,14 +142,22 @@ const getOrders = async (req, res, next) => {
   try {
     const page = Number.parseInt(req.query.page, 10) || 1;
     const limit = Math.min(Number.parseInt(req.query.limit, 10) || 20, 100);
+    const sortBy = req.query.sortBy || 'createdAt';
+    const direction = req.query.direction || 'desc';
+    const sortableFields = ['createdAt', 'total', 'status'];
     if (page < 1 || limit < 1) {
       return res.status(400).json({ error: 'Page and limit must be positive numbers.' });
+    }
+    if (!sortableFields.includes(sortBy) || !['asc', 'desc'].includes(direction)) {
+      return res.status(400).json({
+        error: `sortBy must be one of ${sortableFields.join(', ')} and direction must be asc or desc.`,
+      });
     }
     const filter = req.user.role === 'admin' ? {} : { user: req.user.id };
     const [orders, total] = await Promise.all([
       Order.find(filter)
         .populate('user', 'name email')
-        .sort({ createdAt: -1 })
+        .sort({ [sortBy]: direction === 'asc' ? 1 : -1, _id: direction === 'asc' ? 1 : -1 })
         .skip((page - 1) * limit)
         .limit(limit),
       Order.countDocuments(filter),

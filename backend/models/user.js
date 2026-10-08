@@ -25,6 +25,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String, select: false },
   googleId: { type: String, unique: true, sparse: true, select: false },
   role: { type: String, enum: ['customer', 'admin'], default: 'customer' },
+  emailOffersOptIn: { type: Boolean, default: false },
+  restockProductIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
   addresses: { type: [addressSchema], default: [] },
 }, { timestamps: true });
 

@@ -23,7 +23,7 @@ const generateAccessToken = (user) => {
     {
       algorithm: 'HS256',
       subject: String(userId),
-      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     },
   );
 };
