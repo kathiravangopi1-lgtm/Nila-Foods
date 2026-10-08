@@ -23,5 +23,4 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Optional: Express-generator specific overrides if any
-bin/
+
