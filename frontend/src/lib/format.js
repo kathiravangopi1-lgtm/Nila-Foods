@@ -4,5 +4,11 @@ export function formatMoney(amount, currency = 'INR') {
 
 export function resolveImageUrl(path) {
   if (!path) return ''
-  return path.startsWith('/uploads/') ? path : path
+  if (path.startsWith('/uploads/')) {
+    const apiUrl = import.meta.env.VITE_API_URL?.trim()
+    if (apiUrl?.startsWith('http')) {
+      return `${new URL(apiUrl).origin}${path}`
+    }
+  }
+  return path
 }
