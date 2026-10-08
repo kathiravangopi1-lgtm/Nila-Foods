@@ -21,6 +21,7 @@ const categoryRouter = require('./routers/category_route');
 const cartRouter = require('./routers/cart_route');
 const orderRouter = require('./routers/order_route');
 const paymentRouter = require('./routers/payment_route');
+const locationRouter = require('./routers/location_route');
 const { processPaymentWebhook } = require('./controllers/payment_controller');
 const { uploadsDirectory } = require('./middleware/upload_images');
 
@@ -54,6 +55,7 @@ app.use('/api/categories', categoryRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/orders', orderRouter);
 app.use('/api/payments', paymentRouter);
+app.use('/api/locations', locationRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

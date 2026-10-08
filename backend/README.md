@@ -19,11 +19,18 @@ Copy `.env.example` to `.env`, then set `MONGO_URI` and a unique `JWT_SECRET` of
 - `POST /api/auth/login` — accepts email and password; returns a JWT and a safe user object.
 - `POST /api/auth/google` — accepts the Google Identity Services ID token credential, verifies it against `GOOGLE_CLIENT_ID`, and returns the same app JWT and safe user object. Google sign-in links an existing account only when Google has verified the same email.
 - `GET /api/auth/me` — returns current account details.
+- `PATCH /api/auth/me` — authenticated; updates one or more of `name`, `email`, and `phone` for the signed-in account. Email addresses are normalized to lowercase and must be unique.
 - `POST /api/auth/change-password` — authenticated; accepts `currentPassword` and `newPassword` and returns a rotated access token.
 - `GET /api/auth/addresses` — authenticated; lists the signed-in user's saved delivery addresses.
 - `POST /api/auth/addresses` — authenticated; saves an address. Recipient, address line 1, city, postal code, and country are required. The first saved address becomes the default; users may save up to 10 addresses.
 - `PATCH /api/auth/addresses/:addressId` — authenticated; updates an owned address. Set `isDefault: true` to make it the default address.
 - `DELETE /api/auth/addresses/:addressId` — authenticated; removes an owned address and selects another default if needed.
+- `GET /api/locations/countries?search=...` — public searchable country names.
+- `GET /api/locations/states?country=India&search=...` — public state/province names for a selected country.
+- `GET /api/locations/cities?country=India&state=Tamil%20Nadu&search=chen` — public city names for a selected country, optionally narrowed to a state. City search requires at least two characters and returns up to 50 matches.
+- `GET /api/locations/india/pincode/:pincode` — public lookup for a six-digit Indian PIN code; returns the postal district and state using the India Post public lookup service.
+
+Location options are served from the backend's bundled `country-state-city` dataset. Address forms store the selected display names, so existing saved-address and order data remains compatible.
 
 Send the login JWT in the Authorization header using the bearer-token scheme for protected routes.
 

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import BellToggle from '@/components/BellToggle'
 import PulseHeart from '@/components/PulseHeart'
 import { useAuth } from '@/components/auth/authContext'
@@ -28,6 +28,12 @@ function ProductCard({ product }) {
   const { favoriteIds, toggleFavorite } = useFavorites()
   const { showToast } = useToast()
   const isFavorite = favoriteIds.includes(product._id)
+  const cartQuery = useQuery({
+    queryKey: ['cart'],
+    queryFn: () => apiRequest('/cart', { token }).then((result) => result.data),
+    enabled: Boolean(user),
+  })
+  const cartQuantity = cartQuery.data?.items.find((item) => item.product._id === product._id)?.quantity || 0
   const addToCart = useMutation({
     mutationFn: () => apiRequest('/cart/items', {
       method: 'POST',
@@ -39,6 +45,18 @@ function ProductCard({ product }) {
       showToast(`${product.name} added to your cart.`, 'Added to cart', 'success')
     },
     onError: (error) => showToast(error.message, 'Could not add item', 'error'),
+  })
+  const changeCartQuantity = useMutation({
+    mutationFn: (nextQuantity) => {
+      const method = nextQuantity === 0 ? 'DELETE' : 'PATCH'
+      return apiRequest(`/cart/items/${product._id}`, {
+        method,
+        token,
+        ...(nextQuantity > 0 ? { body: JSON.stringify({ quantity: nextQuantity }) } : {}),
+      })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }),
+    onError: (error) => showToast(error.message, 'Could not update cart', 'error'),
   })
 
   const notifyWhenAvailable = (enabled) => {
@@ -73,16 +91,40 @@ function ProductCard({ product }) {
           <p className="mt-2 text-base font-extrabold text-emerald-900 dark:text-emerald-200">{product.currency === 'INR' ? '₹' : `${product.currency} `}{Number(product.price).toLocaleString('en-IN')}</p>
         </div>
       </Link>
-      <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
+      <div className="flex items-center gap-2 px-1.5 pb-1.5">
         {product.stock > 0 ? (
-          <button
-            type="button"
-            disabled={addToCart.isPending}
-            onClick={() => user ? addToCart.mutate() : navigate('/login')}
-            className="min-h-10 flex-1 rounded-xl bg-emerald-800 px-3 text-xs font-bold text-white transition hover:bg-emerald-900 disabled:opacity-50"
-          >
-            {addToCart.isPending ? 'Adding…' : 'Add to cart'}
-          </button>
+          cartQuantity > 0 ? (
+            <div className="flex min-h-10 flex-1 items-center justify-between rounded-xl bg-emerald-800 px-2 text-white">
+              <button
+                type="button"
+                aria-label={`Decrease ${product.name} quantity`}
+                disabled={changeCartQuantity.isPending || addToCart.isPending}
+                onClick={() => changeCartQuantity.mutate(cartQuantity - 1)}
+                className="grid size-8 place-items-center rounded-lg text-lg font-bold hover:bg-emerald-900 disabled:opacity-50"
+              >
+                −
+              </button>
+              <span aria-live="polite" className="min-w-6 text-center text-sm font-bold">{cartQuantity}</span>
+              <button
+                type="button"
+                aria-label={`Increase ${product.name} quantity`}
+                disabled={changeCartQuantity.isPending || addToCart.isPending || cartQuantity >= product.stock}
+                onClick={() => addToCart.mutate()}
+                className="grid size-8 place-items-center rounded-lg text-lg font-bold hover:bg-emerald-900 disabled:opacity-50"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={addToCart.isPending}
+              onClick={() => user ? addToCart.mutate() : navigate('/login')}
+              className="min-h-10 flex-1 rounded-xl bg-emerald-800 px-3 text-xs font-bold text-white transition hover:bg-emerald-900 disabled:opacity-50"
+            >
+              {addToCart.isPending ? 'Adding…' : 'Add to cart'}
+            </button>
+          )
         ) : (
           <BellToggle
             size="sm"
@@ -98,8 +140,9 @@ function ProductCard({ product }) {
           onChange={() => toggleFavorite(product._id)}
           showCount={false}
           label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          size={38}
-          likedColor="#15803d"
+          size={42}
+          pillColor="transparent"
+          likedColor="#d946ef"
           idleColor="#78716c"
         />
       </div>

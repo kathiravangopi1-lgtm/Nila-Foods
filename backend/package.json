@@ -12,6 +12,7 @@
     "bcryptjs": "^3.0.3",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.6",
+    "country-state-city": "^3.2.1",
     "debug": "~2.6.9",
     "dotenv": "^18.0.5",
     "express": "~4.16.1",

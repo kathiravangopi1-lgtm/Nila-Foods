@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/components/auth/authContext'
 import { useToast } from '@/components/feedback/toastContext'
 import { apiRequest } from '@/lib/api'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
+import LocationField from '@/components/address/LocationField'
+import IndianPincodeField from '@/components/address/IndianPincodeField'
 
 const EMPTY_ADDRESS = {
   recipient: '',
@@ -19,28 +21,38 @@ const EMPTY_ADDRESS = {
 
 const addressFields = [
   ['recipient', 'Full name', true],
-  ['phone', 'Phone number', false],
+  ['phone', 'Phone number', true],
   ['addressLine1', 'Address line 1', true],
   ['addressLine2', 'Address line 2', false],
-  ['city', 'City', true],
-  ['state', 'State', false],
-  ['postalCode', 'PIN code', true],
-  ['country', 'Country', true],
 ]
 
 function AccountPage() {
-  const { user, token } = useAuth()
+  const { user, token, updateProfile } = useAuth()
   const { showToast } = useToast()
   const queryClient = useQueryClient()
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [addressToRemove, setAddressToRemove] = useState(null)
   const [form, setForm] = useState(EMPTY_ADDRESS)
+  const [profileForm, setProfileForm] = useState({
+    name: user.name || '',
+    email: user.email || '',
+    phone: user.phone || '',
+  })
 
   const addressesQuery = useQuery({
     queryKey: ['addresses'],
     queryFn: () => apiRequest('/auth/addresses', { token }).then((result) => result.data),
     enabled: Boolean(token),
+  })
+
+  const saveProfile = useMutation({
+    mutationFn: updateProfile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      showToast('Your profile details were updated.', 'Profile saved', 'success')
+    },
+    onError: (error) => showToast(error.message, 'Could not update profile', 'error'),
   })
 
   const saveAddress = useMutation({
@@ -89,12 +101,37 @@ function AccountPage() {
 
   const beginEditAddress = (address) => {
     setEditingId(address._id)
-    setForm(Object.fromEntries(addressFields.map(([name]) => [name, address[name] || ''])))
+    setForm({
+      ...Object.fromEntries(addressFields.map(([name]) => [name, address[name] || ''])),
+      city: address.city || '',
+      state: address.state || '',
+      country: address.country || 'India',
+    })
     setIsAddressFormOpen(true)
   }
 
   const updateField = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
+  }
+
+  const updateLocation = (field, value) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'state' ? { city: '' } : {}),
+    }))
+  }
+
+  const updatePincodeLocation = useCallback(({ city, state }) => {
+    setForm((current) => ({ ...current, city, state, country: 'India' }))
+  }, [])
+  const updatePostalCode = (postalCode) => {
+    setForm((current) => ({
+      ...current,
+      postalCode,
+      ...(postalCode !== current.postalCode ? { city: '', state: '' } : {}),
+      country: 'India',
+    }))
   }
 
   const submitAddress = (event) => {
@@ -122,14 +159,41 @@ function AccountPage() {
           </Link>
         ))}
       </div>
-      <div className="rounded-2xl border border-stone-300 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          saveProfile.mutate(profileForm)
+        }}
+        className="rounded-2xl border border-stone-300 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
+      >
         <h2 className="font-bold">Account details</h2>
-        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-          <div><dt className="text-stone-500">Name</dt><dd className="mt-1 font-semibold">{user.name}</dd></div>
-          <div><dt className="text-stone-500">Email</dt><dd className="mt-1 font-semibold">{user.email}</dd></div>
-          {user.phone && <div><dt className="text-stone-500">Phone</dt><dd className="mt-1 font-semibold">{user.phone}</dd></div>}
-        </dl>
-      </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {[
+            ['name', 'Full name', 'text'],
+            ['email', 'Email address', 'email'],
+            ['phone', 'Phone number', 'tel'],
+          ].map(([name, label, type]) => (
+            <label key={name} className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-stone-700 dark:text-stone-200">
+              {label}
+              <input
+                type={type}
+                required={name !== 'phone'}
+                autoComplete={name}
+                value={profileForm[name]}
+                onChange={(event) => setProfileForm((current) => ({ ...current, [name]: event.target.value }))}
+                className="h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm font-normal outline-none focus:border-emerald-700 dark:border-stone-700 dark:bg-stone-950 dark:text-white"
+              />
+            </label>
+          ))}
+        </div>
+        <button
+          type="submit"
+          disabled={saveProfile.isPending}
+          className="mt-4 min-h-10 rounded-xl bg-emerald-800 px-4 text-sm font-bold text-white hover:bg-emerald-900 disabled:opacity-50"
+        >
+          {saveProfile.isPending ? 'Saving…' : 'Save profile'}
+        </button>
+      </form>
 
       <section className="rounded-2xl border border-stone-300 bg-white p-5 dark:border-stone-800 dark:bg-stone-900" aria-labelledby="saved-addresses-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -170,6 +234,25 @@ function AccountPage() {
                   />
                 </label>
               ))}
+              <IndianPincodeField
+                value={form.postalCode}
+                onValueChange={updatePostalCode}
+                onLocationResolved={updatePincodeLocation}
+              />
+              <LocationField
+                level="state"
+                label="State / province"
+                value={form.state}
+                onValueChange={(value) => updateLocation('state', value)}
+              />
+              <LocationField
+                level="city"
+                label="City"
+                state={form.state}
+                value={form.city}
+                onValueChange={(value) => updateLocation('city', value)}
+                required
+              />
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => { setIsAddressFormOpen(false); setEditingId(null) }} className="min-h-10 rounded-xl border border-stone-300 px-4 text-sm font-semibold dark:border-stone-700">

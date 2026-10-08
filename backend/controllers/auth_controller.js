@@ -150,6 +150,44 @@ const getCurrentUser = async (req, res, next) => {
   }
 };
 
+const updateCurrentUser = async (req, res, next) => {
+  const body = req.body || {};
+  const allowedFields = ['name', 'email', 'phone'];
+  const fields = Object.keys(body);
+  if (!fields.length || fields.some((field) => !allowedFields.includes(field))) {
+    return res.status(400).json({ error: 'Provide one or more supported profile fields: name, email, phone.' });
+  }
+  if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim())) {
+    return res.status(400).json({ error: 'Name must be a non-empty string.' });
+  }
+  if (body.email !== undefined && (typeof body.email !== 'string' || !isEmail(body.email.trim()))) {
+    return res.status(400).json({ error: 'A valid email address is required.' });
+  }
+  if (body.phone !== undefined && (typeof body.phone !== 'string' || body.phone.trim().length > 40)) {
+    return res.status(400).json({ error: 'Phone number must be a string no longer than 40 characters.' });
+  }
+
+  try {
+    const user = await userModel.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User account not found.' });
+
+    if (body.name !== undefined) user.name = body.name.trim();
+    if (body.email !== undefined) user.email = body.email.trim().toLowerCase();
+    if (body.phone !== undefined) user.phone = body.phone.trim();
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Profile updated successfully.',
+      data: toSafeUser(user),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+    return next(error);
+  }
+};
+
 const changePassword = async (req, res, next) => {
   const { currentPassword, newPassword } = req.body || {};
   if (
@@ -195,5 +233,6 @@ module.exports = {
     login,
     googleLogin,
     getCurrentUser,
+    updateCurrentUser,
     changePassword,
 };

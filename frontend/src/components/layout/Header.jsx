@@ -20,7 +20,7 @@ function Header({ theme, onToggleTheme }) {
           </span>
         </Link>
 
-        <form action="/products" method="get" role="search" className="order-3 flex w-full items-center rounded-xl border border-slate-300 bg-slate-50 px-3 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-violet-950 sm:order-none sm:ml-2 sm:max-w-xl sm:flex-1">
+        <form action="/products" method="get" role="search" className="order-3 flex w-full min-w-0 items-center rounded-xl border border-slate-300 bg-slate-50 px-3 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-violet-950 sm:order-none sm:ml-2 sm:flex-1">
           <Search aria-hidden="true" className="size-5 shrink-0 text-slate-500" />
           <input
             type="search"
@@ -56,7 +56,7 @@ function Header({ theme, onToggleTheme }) {
                   Admin
                 </NavLink>
               )}
-              <button type="button" onClick={() => setShowLogoutConfirmation(true)} aria-label="Sign out" className="grid size-10 place-items-center rounded-full text-stone-600 transition hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800">
+              <button type="button" onClick={() => setShowLogoutConfirmation(true)} aria-label="Sign out" className="cursor-pointer grid size-10 place-items-center rounded-full text-stone-600 transition hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800">
                 <LogOut aria-hidden="true" className="size-4" />
               </button>
             </>

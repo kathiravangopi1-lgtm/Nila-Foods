@@ -88,13 +88,23 @@ export function AuthProvider({ children }) {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: result.token }))
   }
 
+  const updateProfile = async (profile) => {
+    const result = await apiRequest('/auth/me', {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(profile),
+    })
+    setUser((current) => ({ ...current, ...result.data }))
+    return result.data
+  }
+
   const logout = () => {
     window.localStorage.removeItem(AUTH_STORAGE_KEY)
     setToken(null)
     setUser(null)
   }
 
-  const value = { token, user, isLoading, restoreError, login, googleLogin, register, changePassword, logout }
+  const value = { token, user, isLoading, restoreError, login, googleLogin, register, changePassword, updateProfile, logout }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

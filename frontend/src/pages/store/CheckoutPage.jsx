@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import Stepper from '@/components/Stepper'
+import IndianPincodeField from '@/components/address/IndianPincodeField'
+import LocationField from '@/components/address/LocationField'
 import { useAuth } from '@/components/auth/authContext'
 import { apiRequest } from '@/lib/api'
 import { formatMoney } from '@/lib/format'
@@ -28,8 +30,8 @@ function CheckoutPage() {
         city: '',
         state: '',
         postalCode: '',
-        country: 'India',
         ...JSON.parse(sessionStorage.getItem('nila-checkout-address') || '{}'),
+        country: 'India',
       }
     } catch {
       sessionStorage.removeItem('nila-checkout-address')
@@ -65,6 +67,15 @@ function CheckoutPage() {
   })
   const cartItems = cartQuery.data?.items || []
   const subtotal = cartItems.reduce((sum, item) => sum + item.lineTotal, 0)
+
+  const updatePincodeLocation = useCallback(({ city, state }) => {
+    setSelectedAddressId('')
+    setShippingAddress((current) => {
+      const next = { ...current, city, state, country: 'India' }
+      sessionStorage.setItem('nila-checkout-address', JSON.stringify(next))
+      return next
+    })
+  }, [])
 
   const createPaymentOrder = async () => {
     if (creatingRef.current || paymentOrder) return
@@ -165,6 +176,32 @@ function CheckoutPage() {
       return next
     })
   }
+  const updatePostalCode = (postalCode) => {
+    setSelectedAddressId('')
+    setShippingAddress((current) => {
+      const next = {
+        ...current,
+        postalCode,
+        ...(postalCode !== current.postalCode ? { city: '', state: '' } : {}),
+        country: 'India',
+      }
+      sessionStorage.setItem('nila-checkout-address', JSON.stringify(next))
+      return next
+    })
+  }
+  const updateLocation = (field, value) => {
+    setSelectedAddressId('')
+    setShippingAddress((current) => {
+      const next = {
+        ...current,
+        [field]: value,
+        ...(field === 'state' ? { city: '' } : {}),
+        country: 'India',
+      }
+      sessionStorage.setItem('nila-checkout-address', JSON.stringify(next))
+      return next
+    })
+  }
   const selectSavedAddress = (event) => {
     const addressId = event.target.value
     setSelectedAddressId(addressId)
@@ -178,7 +215,7 @@ function CheckoutPage() {
       city: address.city || '',
       state: address.state || '',
       postalCode: address.postalCode || '',
-      country: address.country || 'India',
+      country: 'India',
     }
     setShippingAddress(next)
     sessionStorage.setItem('nila-checkout-address', JSON.stringify(next))
@@ -235,14 +272,34 @@ function CheckoutPage() {
             {[
               ['recipient', 'Full name', true], ['phone', 'Phone number', false],
               ['addressLine1', 'Address line 1', true], ['addressLine2', 'Address line 2', false],
-              ['city', 'City', true], ['state', 'State', false],
-              ['postalCode', 'PIN code', true], ['country', 'Country', true],
             ].map(([name, label, required]) => (
               <label key={name} className={`space-y-1.5 ${name.startsWith('addressLine') ? 'sm:col-span-2' : ''}`}>
                 <span className="text-xs font-semibold text-stone-700 dark:text-stone-200">{label}{required ? ' *' : ''}</span>
                 <input name={name} required={required} disabled={Boolean(paymentOrder)} value={shippingAddress[name]} onChange={updateAddress} className="h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none focus:border-emerald-700 disabled:bg-stone-100 dark:border-stone-700 dark:bg-stone-950 dark:text-white dark:disabled:bg-stone-900" />
               </label>
             ))}
+            <IndianPincodeField
+              value={shippingAddress.postalCode}
+              onValueChange={updatePostalCode}
+              onLocationResolved={updatePincodeLocation}
+              disabled={Boolean(paymentOrder)}
+            />
+            <LocationField
+              level="state"
+              label="State / province"
+              value={shippingAddress.state}
+              onValueChange={(value) => updateLocation('state', value)}
+              disabled={Boolean(paymentOrder)}
+            />
+            <LocationField
+              level="city"
+              label="City"
+              state={shippingAddress.state}
+              value={shippingAddress.city}
+              onValueChange={(value) => updateLocation('city', value)}
+              required
+              disabled={Boolean(paymentOrder)}
+            />
           </div>
         </div>
         <div className="space-y-4">

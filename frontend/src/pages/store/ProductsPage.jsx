@@ -153,7 +153,7 @@ function ProductsPage() {
         </div>
       )}
       {productsQuery.data?.data?.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),240px))] justify-center gap-3">
           {productsQuery.data.data.map((product) => <ProductCard key={product._id} product={product} />)}
         </div>
       )}
