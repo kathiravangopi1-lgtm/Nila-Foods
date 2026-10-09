@@ -1,14 +1,68 @@
 const mongoose = require('mongoose');
 const Category = require('../models/category');
 const Product = require('../models/product');
-const { removeUploadedFiles } = require('../middleware/upload_images');
+const cloudinary = require('../services/cloudinary_service');
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 const slugify = (value) => value.trim().toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-|-$/g, '');
 const isNonNegativeNumber = (value) => Number.isFinite(Number(value)) && Number(value) >= 0;
-const uploadedImageUrls = (files = []) => files.map((file) => `/uploads/${file.filename}`);
+const uploadedImageAssets = async (files = []) => {
+  const assets = [];
+  try {
+    for (const file of files) {
+      assets.push(await cloudinary.uploadImage(file));
+    }
+    return assets;
+  } catch (error) {
+    try {
+      await Promise.all(assets.map((asset) => cloudinary.deleteImage(asset.publicId)));
+    } catch (cleanupError) {
+      console.error('Failed to remove an uncommitted Cloudinary upload:', cleanupError.name);
+      throw new AggregateError([error, cleanupError], 'Image upload failed and cleanup was incomplete.');
+    }
+    throw error;
+  }
+};
+
+const removeUncommittedAssets = async (assets) => {
+  const outcomes = await Promise.allSettled(assets.map((asset) => cloudinary.deleteImage(asset.publicId)));
+  const failures = outcomes.filter((outcome) => outcome.status === 'rejected');
+  if (failures.length) {
+    console.error('Failed to remove uncommitted Cloudinary product images:', failures.length);
+    throw new AggregateError(failures.map((failure) => failure.reason), 'Cloudinary upload cleanup was incomplete.');
+  }
+};
+
+const removeUnreferencedAssets = async (productId, previousAssets, retainedAssets) => {
+  const retainedPublicIds = new Set(retainedAssets.map((asset) => asset.publicId));
+  const removedAssets = previousAssets.filter((asset) => !retainedPublicIds.has(asset.publicId));
+  const failures = [];
+  for (const asset of removedAssets) {
+    let referencedElsewhere;
+    try {
+      referencedElsewhere = await Product.exists({
+        _id: { $ne: productId },
+        'imageAssets.publicId': asset.publicId,
+      });
+    } catch (error) {
+      failures.push(error);
+      continue;
+    }
+    if (referencedElsewhere) continue;
+    try {
+      await cloudinary.deleteImage(asset.publicId);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) {
+    console.error('Cloudinary cleanup failed after product update:', failures.length);
+    return false;
+  }
+  return true;
+};
 
 const parseImageUrls = (value) => {
   if (typeof value === 'string') {
@@ -20,17 +74,6 @@ const parseImageUrls = (value) => {
     }
   }
   return value;
-};
-
-const cleanupUploads = async (files, next) => {
-  try {
-    await removeUploadedFiles(files);
-    return true;
-  } catch (cleanupError) {
-    console.error('Failed to clean up uploaded product images:', cleanupError);
-    next(cleanupError);
-    return false;
-  }
 };
 
 const getProducts = async (req, res, next, { includeInactive = false } = {}) => {
@@ -182,7 +225,12 @@ const validateProductData = async (body, { isUpdate = false } = {}) => {
   }
   if (body.images !== undefined) {
     const images = parseImageUrls(body.images);
-    if (!Array.isArray(images) || images.some((image) => typeof image !== 'string' || !image.trim())) {
+    if (
+      !isUpdate
+      || !Array.isArray(images)
+      || images.length > 8
+      || images.some((image) => typeof image !== 'string' || !image.trim())
+    ) {
       return { error: 'images must be an array of up to 8 non-empty URLs.' };
     }
     updates.images = images.map((image) => image.trim());
@@ -192,48 +240,44 @@ const validateProductData = async (body, { isUpdate = false } = {}) => {
 };
 
 const createProduct = async (req, res, next) => {
+  let uploadedAssets = [];
   try {
     const result = await validateProductData(req.body || {});
     if (result.error) {
-      if (!await cleanupUploads(req.files, next)) {
-        return undefined;
-      }
       return res.status(400).json({ error: result.error });
     }
-    const images = [...(result.updates.images || []), ...uploadedImageUrls(req.files)];
-    if (images.length > 8) {
-      if (!await cleanupUploads(req.files, next)) {
-        return undefined;
-      }
+    if (req.body?.images !== undefined) {
+      return res.status(400).json({ error: 'Product images must be uploaded as image files.' });
+    }
+    if ((req.files || []).length > 8) {
       return res.status(400).json({ error: 'A product can have at most 8 images.' });
     }
+    uploadedAssets = await uploadedImageAssets(req.files);
     const product = await Product.create({
       ...result.updates,
-      images,
+      images: uploadedAssets.map((asset) => asset.url),
+      imageAssets: uploadedAssets,
       currency: result.updates.currency || process.env.DEFAULT_CURRENCY || 'INR',
     });
     return res.status(201).json({ message: 'Product created.', data: product });
   } catch (error) {
-    if (await cleanupUploads(req.files, next)) {
-      return next(error);
+    try {
+      await removeUncommittedAssets(uploadedAssets);
+    } catch (cleanupError) {
+      return next(new AggregateError([error, cleanupError], 'Product creation failed and image cleanup was incomplete.'));
     }
-    return undefined;
+    return next(error);
   }
 };
 
 const updateProduct = async (req, res, next) => {
   if (!isValidId(req.params.productId)) {
-    if (!await cleanupUploads(req.files, next)) {
-      return undefined;
-    }
     return res.status(400).json({ error: 'Invalid product id.' });
   }
+  let uploadedAssets = [];
   try {
     const result = await validateProductData(req.body || {}, { isUpdate: true });
     if (result.error) {
-      if (!await cleanupUploads(req.files, next)) {
-        return undefined;
-      }
       return res.status(400).json({ error: result.error });
     }
     if (req.body && req.body.isActive !== undefined) {
@@ -241,9 +285,6 @@ const updateProduct = async (req, res, next) => {
         ? true
         : req.body.isActive === 'false' ? false : req.body.isActive;
       if (typeof isActive !== 'boolean') {
-        if (!await cleanupUploads(req.files, next)) {
-          return undefined;
-        }
         return res.status(400).json({ error: 'isActive must be a boolean.' });
       }
       result.updates.isActive = isActive;
@@ -253,35 +294,50 @@ const updateProduct = async (req, res, next) => {
     }
     const currentProduct = await Product.findById(req.params.productId);
     if (!currentProduct) {
-      if (!await cleanupUploads(req.files, next)) {
-        return undefined;
-      }
       return res.status(404).json({ error: 'Product not found.' });
     }
-    const images = req.body && req.body.images !== undefined
-      ? [...(result.updates.images || []), ...uploadedImageUrls(req.files)]
-      : [...currentProduct.images, ...uploadedImageUrls(req.files)];
-    if (images.length > 8) {
-      if (!await cleanupUploads(req.files, next)) {
-        return undefined;
-      }
+    const currentImages = currentProduct.images || [];
+    const retainedImages = req.body?.images !== undefined ? result.updates.images : currentImages;
+    if (retainedImages.some((image) => !currentImages.includes(image))) {
+      return res.status(400).json({ error: 'Only currently assigned product images can be retained.' });
+    }
+    if (retainedImages.length + (req.files || []).length > 8) {
       return res.status(400).json({ error: 'A product can have at most 8 images.' });
     }
+    uploadedAssets = await uploadedImageAssets(req.files);
+    const images = [...retainedImages, ...uploadedAssets.map((asset) => asset.url)];
     if ((req.body && req.body.images !== undefined) || (req.files && req.files.length)) {
       result.updates.images = images;
+      const retainedUrls = new Set(retainedImages);
+      result.updates.imageAssets = [
+        ...(currentProduct.imageAssets || []).filter((asset) => retainedUrls.has(asset.url)),
+        ...uploadedAssets,
+      ];
     }
+    const previousAssets = currentProduct.imageAssets || [];
     const product = await Product.findByIdAndUpdate(req.params.productId, {
       $set: result.updates,
     }, { new: true, runValidators: true });
     if (!product) {
-      return res.status(404).json({ error: 'Product not found.' });
+      const error = new Error('Product not found.');
+      error.status = 404;
+      throw error;
     }
-    return res.status(200).json({ message: 'Product updated.', data: product });
+    uploadedAssets = [];
+    const cleanupSucceeded = !result.updates.imageAssets
+      || await removeUnreferencedAssets(product._id, previousAssets, result.updates.imageAssets);
+    return res.status(200).json({
+      message: 'Product updated.',
+      ...(cleanupSucceeded ? {} : { warning: 'The product was updated, but a replaced image could not be removed from storage.' }),
+      data: product,
+    });
   } catch (error) {
-    if (await cleanupUploads(req.files, next)) {
-      return next(error);
+    try {
+      await removeUncommittedAssets(uploadedAssets);
+    } catch (cleanupError) {
+      return next(new AggregateError([error, cleanupError], 'Product update failed and image cleanup was incomplete.'));
     }
-    return undefined;
+    return next(error);
   }
 };
 

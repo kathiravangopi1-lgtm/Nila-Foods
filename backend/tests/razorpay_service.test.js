@@ -9,6 +9,7 @@ process.env.RAZORPAY_WEBHOOK_SECRET = 'unit-test-webhook-secret';
 const {
   verifyCheckoutSignature,
   verifyWebhookSignature,
+  isRazorpayKeyConfigured,
 } = require('../services/razorpay_service');
 
 test('checkout signature verifies only the exact Razorpay order and payment pair', () => {
@@ -33,4 +34,16 @@ test('webhook signature is checked against the original raw body', () => {
 
   assert.equal(verifyWebhookSignature(body, signature), true);
   assert.equal(verifyWebhookSignature(Buffer.from(`${body.toString()} `), signature), false);
+});
+
+test('configured Razorpay mode must match the key prefix before payments are enabled', () => {
+  assert.equal(isRazorpayKeyConfigured(), true);
+  process.env.RAZORPAY_MODE = 'live';
+  assert.equal(isRazorpayKeyConfigured(), false);
+  process.env.RAZORPAY_KEY_ID = 'rzp_live_unit_test_key';
+  assert.equal(isRazorpayKeyConfigured(), true);
+  process.env.RAZORPAY_MODE = 'invalid';
+  assert.throws(() => isRazorpayKeyConfigured(), /RAZORPAY_MODE must be set to test or live/);
+  process.env.RAZORPAY_MODE = 'test';
+  process.env.RAZORPAY_KEY_ID = 'rzp_test_unit_test_key';
 });

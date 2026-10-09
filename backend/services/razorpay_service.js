@@ -3,15 +3,29 @@ const Razorpay = require('razorpay');
 
 let razorpayClient;
 
-const getRazorpayClient = () => {
-  const { RAZORPAY_KEY_ID: key_id, RAZORPAY_KEY_SECRET: key_secret } = process.env;
-  if (!key_id || !key_secret) {
-    const error = new Error('Razorpay test credentials are not configured.');
+const getConfiguredMode = () => {
+  const mode = process.env.RAZORPAY_MODE?.trim().toLowerCase() || 'test';
+  if (!['test', 'live'].includes(mode)) {
+    const error = new Error('RAZORPAY_MODE must be set to test or live.');
     error.status = 503;
     throw error;
   }
-  if (!key_id.startsWith('rzp_test_')) {
-    const error = new Error('Only Razorpay Test Mode keys are accepted by this application.');
+  return mode;
+};
+
+const isRazorpayKeyConfigured = () => {
+  const mode = getConfiguredMode();
+  return Boolean(
+    process.env.RAZORPAY_KEY_SECRET
+    && process.env.RAZORPAY_KEY_ID?.startsWith(`rzp_${mode}_`),
+  );
+};
+
+const getRazorpayClient = () => {
+  const { RAZORPAY_KEY_ID: key_id, RAZORPAY_KEY_SECRET: key_secret } = process.env;
+  const mode = getConfiguredMode();
+  if (!key_id || !key_secret || !key_id.startsWith(`rzp_${mode}_`)) {
+    const error = new Error(`Razorpay ${mode} credentials are not configured.`);
     error.status = 503;
     throw error;
   }
@@ -70,4 +84,5 @@ module.exports = {
   fetchPayment,
   verifyCheckoutSignature,
   verifyWebhookSignature,
+  isRazorpayKeyConfigured,
 };

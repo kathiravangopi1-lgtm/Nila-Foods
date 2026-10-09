@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const Cart = require('../models/cart');
 const Order = require('../models/order');
 const Product = require('../models/product');
 
@@ -36,107 +35,9 @@ const rollbackStockChanges = async (changes, direction) => {
   }
 };
 
-const createOrder = async (req, res, next) => {
-  const { shippingAddress } = req.body || {};
-  const requiredAddressFields = ['recipient', 'addressLine1', 'city', 'postalCode', 'country'];
-  if (
-    !shippingAddress
-    || requiredAddressFields.some((field) => (
-      typeof shippingAddress[field] !== 'string' || !shippingAddress[field].trim()
-    ))
-  ) {
-    return res.status(400).json({
-      error: `shippingAddress must include ${requiredAddressFields.join(', ')}.`,
-    });
-  }
-
-  const reservedItems = [];
-  try {
-    const cart = await Cart.findOne({ user: req.user.id }).populate({
-      path: 'items.product',
-      select: 'name sku price currency images stock isActive',
-    });
-    if (!cart || !cart.items.length) {
-      return res.status(400).json({ error: 'Your cart is empty.' });
-    }
-
-    const quantities = new Map();
-    for (const item of cart.items) {
-      if (!item.product || !item.product.isActive) {
-        return res.status(409).json({ error: 'A product in your cart is no longer available.' });
-      }
-      const id = item.product._id.toString();
-      quantities.set(id, (quantities.get(id) || 0) + item.quantity);
-    }
-
-    const items = cart.items.map((item) => ({
-      product: item.product._id,
-      name: item.product.name,
-      sku: item.product.sku,
-      image: item.product.images[0],
-      unitPrice: item.product.price,
-      quantity: item.quantity,
-    }));
-    const subtotal = Number(items.reduce(
-      (total, item) => total + item.unitPrice * item.quantity,
-      0,
-    ).toFixed(2));
-    const order = new Order({
-      user: req.user.id,
-      items,
-      shippingAddress,
-      subtotal,
-      shippingCost: 0,
-      tax: 0,
-      total: subtotal,
-    });
-    await order.validate();
-
-    for (const [productId, quantity] of quantities) {
-      const result = await Product.updateOne(
-        { _id: productId, isActive: true, stock: { $gte: quantity } },
-        { $inc: { stock: -quantity } },
-      );
-      if (result.matchedCount !== 1) {
-        const error = new Error('A product does not have enough stock to complete this order.');
-        error.status = 409;
-        throw error;
-      }
-      reservedItems.push({ productId, quantity });
-    }
-
-    try {
-      await order.save();
-    } catch (error) {
-      await rollbackStockChanges(reservedItems, 1);
-      throw error;
-    }
-
-    reservedItems.length = 0;
-    let cartCleared = true;
-    try {
-      await Cart.updateOne({ user: req.user.id }, { $set: { items: [] } });
-    } catch (error) {
-      cartCleared = false;
-      console.error('Order was created but the cart could not be cleared:', error);
-    }
-    return res.status(201).json({
-      message: cartCleared ? 'Order created.' : 'Order created, but the cart could not be cleared.',
-      data: order,
-      cartCleared,
-    });
-  } catch (error) {
-    if (reservedItems.length) {
-      try {
-        await rollbackStockChanges(reservedItems, 1);
-      } catch (rollbackError) {
-        console.error('Failed to restore product stock after order failure:', rollbackError);
-        return next(rollbackError);
-      }
-    }
-    return next(error);
-  }
-};
+const createOrder = (_req, res) => res.status(410).json({
+  error: 'Direct order creation is disabled. Start checkout through /api/payments/create-order.',
+});
 
 const getOrders = async (req, res, next) => {
   try {
@@ -208,6 +109,14 @@ const updateOrderStatus = async (req, res, next) => {
     if (status === order.status) {
       return res.status(200).json({ message: 'Order status is unchanged.', data: order });
     }
+    if (status === 'confirmed' && order.paymentStatus !== 'paid') {
+      return res.status(409).json({ error: 'An order cannot be confirmed before its payment is verified.' });
+    }
+    if (status === 'cancelled' && order.paymentStatus === 'paid') {
+      return res.status(409).json({
+        error: 'Paid orders cannot be cancelled until a refund is processed through the payment provider.',
+      });
+    }
     if (!allowedStatusTransitions[order.status].includes(status)) {
       return res.status(409).json({
         error: `An order in "${order.status}" status cannot be changed to "${status}".`,
@@ -216,7 +125,7 @@ const updateOrderStatus = async (req, res, next) => {
 
     const updatedOrder = await Order.findOneAndUpdate(
       { _id: orderId, status: order.status },
-      { $set: { status } },
+      { $set: { status, ...(status === 'cancelled' ? { paymentStatus: 'failed' } : {}) } },
       { new: true, runValidators: true },
     );
     if (!updatedOrder) {

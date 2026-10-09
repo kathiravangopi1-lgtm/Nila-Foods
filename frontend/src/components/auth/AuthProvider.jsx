@@ -95,7 +95,10 @@ export function AuthProvider({ children }) {
       body: JSON.stringify(profile),
     })
     setUser((current) => ({ ...current, ...result.data }))
-    return result.data
+    return {
+      ...result.data,
+      requiresEmailVerification: Boolean(result.requiresEmailVerification),
+    }
   }
 
   const logout = () => {

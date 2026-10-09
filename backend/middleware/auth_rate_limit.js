@@ -15,4 +15,5 @@ module.exports = {
   authRequestLimiter: createLimiter(10, 'Too many authentication requests. Please try again later.'),
   otpRequestLimiter: createLimiter(10, 'Too many code requests. Please try again later.'),
   otpVerifyLimiter: createLimiter(20, 'Too many verification attempts. Please try again later.'),
+  paymentRequestLimiter: createLimiter(20, 'Too many payment requests. Please try again later.'),
 };

@@ -1,5 +1,6 @@
 const Order = require('../models/order');
 const mongoose = require('mongoose');
+const RazorpayWebhookEvent = require('../models/razorpay_webhook_event');
 const {
   createCheckoutOrder,
   cancelUnpaidCheckoutOrder,
@@ -9,6 +10,7 @@ const {
   fetchPayment,
   verifyCheckoutSignature,
   verifyWebhookSignature,
+  isRazorpayKeyConfigured,
 } = require('../services/razorpay_service');
 
 const requiredAddressFields = ['recipient', 'addressLine1', 'city', 'postalCode', 'country'];
@@ -34,11 +36,9 @@ const createPaymentOrder = async (req, res, next) => {
 
   let newlyCreatedCheckoutOrder;
   try {
-    if (
-      !process.env.RAZORPAY_KEY_ID?.startsWith('rzp_test_')
-      || !process.env.RAZORPAY_KEY_SECRET
-    ) {
-      const error = new Error('Razorpay Test Mode credentials are not configured.');
+    if (!isRazorpayKeyConfigured()) {
+      const mode = process.env.RAZORPAY_MODE || 'test';
+      const error = new Error(`Razorpay ${mode} credentials are not configured.`);
       error.status = 503;
       throw error;
     }
@@ -77,7 +77,7 @@ const createPaymentOrder = async (req, res, next) => {
           notes: { orderId: order._id.toString(), customerId: req.user.id },
         });
       } catch (gatewayError) {
-        const error = new Error('Razorpay could not create the payment order. Check the backend Test Mode credentials and try again.');
+        const error = new Error('Razorpay could not create the payment order. Check the backend payment credentials and try again.');
         error.status = 502;
         error.apiCode = 'RAZORPAY_ORDER_CREATION_FAILED';
         error.cause = gatewayError;
@@ -249,24 +249,51 @@ const processPaymentWebhook = async (req, res, next) => {
   if (!payment || !['payment.captured', 'payment.failed'].includes(event.event)) {
     return res.status(200).json({ received: true, ignored: true });
   }
+  const eventId = req.get('x-razorpay-event-id');
+  if (typeof eventId !== 'string' || !eventId || eventId.length > 200) {
+    return res.status(400).json({ error: 'Razorpay webhook is missing a valid event identifier.' });
+  }
   if (typeof payment.order_id !== 'string' || typeof payment.id !== 'string') {
     return res.status(400).json({ error: 'Razorpay webhook is missing payment identifiers.' });
   }
 
+  let webhookEvent;
   try {
+    try {
+      webhookEvent = await RazorpayWebhookEvent.create({ eventId, eventType: event.event });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      const existingEvent = await RazorpayWebhookEvent.findOne({ eventId });
+      if (existingEvent?.status === 'processed') {
+        return res.status(200).json({ received: true, duplicate: true });
+      }
+      const staleBefore = new Date(Date.now() - 5 * 60 * 1000);
+      webhookEvent = await RazorpayWebhookEvent.findOneAndUpdate(
+        { eventId, status: 'processing', updatedAt: { $lt: staleBefore } },
+        { $set: { updatedAt: new Date() } },
+        { new: true },
+      );
+      if (!webhookEvent) {
+        return res.status(503).json({ error: 'Razorpay webhook event is being processed. Retry delivery.' });
+      }
+    }
+
     const order = await Order.findOne({ razorpayOrderId: payment.order_id });
     if (!order) {
+      webhookEvent.status = 'processed';
+      await webhookEvent.save();
       return res.status(200).json({ received: true, ignored: true });
     }
     if (event.event === 'payment.captured') {
       if (payment.amount !== Math.round(order.total * 100) || payment.currency !== 'INR') {
         return res.status(400).json({ error: 'Captured payment amount does not match the order.' });
       }
-      await Order.updateOne(
+      const result = await Order.updateOne(
         {
           _id: order._id,
           status: 'pending',
           paymentStatus: { $in: ['pending', 'failed'] },
+          razorpayPaymentId: { $in: [null, payment.id] },
         },
         {
           $set: {
@@ -278,11 +305,56 @@ const processPaymentWebhook = async (req, res, next) => {
           },
         },
       );
+      if (result.matchedCount !== 1) {
+        const latestOrder = await Order.findById(order._id);
+        if (latestOrder?.paymentStatus === 'paid' && latestOrder.razorpayPaymentId === payment.id) {
+          // The same verified capture was already applied by checkout verification or another delivery.
+        } else if (latestOrder?.status === 'cancelled' && latestOrder.paymentStatus === 'failed') {
+          const capturedAfterCancellation = await Order.updateOne(
+            {
+              _id: order._id,
+              status: 'cancelled',
+              paymentStatus: 'failed',
+              razorpayPaymentId: { $in: [null, payment.id] },
+            },
+            {
+              $set: {
+                paymentStatus: 'paid',
+                paymentMethod: payment.method,
+                razorpayPaymentId: payment.id,
+                paidAt: new Date(payment.created_at * 1000),
+              },
+            },
+          );
+          if (capturedAfterCancellation.matchedCount !== 1) {
+            webhookEvent.status = 'processed';
+            await webhookEvent.save();
+            return res.status(200).json({ received: true, ignored: true });
+          }
+          console.error('A verified payment was captured after its order was cancelled; refund review is required.');
+        } else {
+          webhookEvent.status = 'processed';
+          await webhookEvent.save();
+          return res.status(200).json({ received: true, ignored: true });
+        }
+      }
     } else {
-      await cancelUnpaidCheckoutOrder({ orderId: order._id, userId: order.user });
+      await Order.updateOne(
+        { _id: order._id, status: 'pending', paymentStatus: 'pending' },
+        { $set: { paymentStatus: 'failed' } },
+      );
     }
+    webhookEvent.status = 'processed';
+    await webhookEvent.save();
     return res.status(200).json({ received: true });
   } catch (error) {
+    if (webhookEvent) {
+      try {
+        await RazorpayWebhookEvent.deleteOne({ _id: webhookEvent._id, status: 'processing' });
+      } catch (cleanupError) {
+        console.error('Could not release a failed Razorpay webhook event:', cleanupError.name);
+      }
+    }
     return next(error);
   }
 };

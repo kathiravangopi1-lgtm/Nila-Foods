@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/components/auth/authContext'
 import { useToast } from '@/components/feedback/toastContext'
 import { apiRequest } from '@/lib/api'
@@ -30,6 +30,7 @@ const addressFields = [
 
 function AccountPage() {
   const { user, token, updateProfile } = useAuth()
+  const navigate = useNavigate()
   const { showToast } = useToast()
   const queryClient = useQueryClient()
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false)
@@ -51,8 +52,16 @@ function AccountPage() {
 
   const saveProfile = useMutation({
     mutationFn: updateProfile,
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      if (result.requiresEmailVerification) {
+        navigate(`/verify-email?email=${encodeURIComponent(result.email)}`, {
+          replace: true,
+          state: { email: result.email },
+        })
+        showToast('A verification code was sent to your new email address.', 'Verify your email', 'success')
+        return
+      }
       showToast('Your profile details were updated.', 'Profile saved', 'success')
     },
     onError: (error) => showToast(error.message, 'Could not update profile', 'error'),

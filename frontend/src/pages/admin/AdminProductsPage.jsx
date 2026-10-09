@@ -14,7 +14,7 @@ import Pagination from '@/components/ui/Pagination'
 import Alert from '@/components/ui/Alert'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 
-const emptyForm = { name: '', sku: '', description: '', price: '', stock: '', category: '', imageFiles: [] }
+const emptyForm = { name: '', sku: '', description: '', price: '', stock: '', category: '', imageFiles: [], imageUrls: [] }
 
 function AdminProductsPage() {
   const { token } = useAuth()
@@ -44,6 +44,10 @@ function AdminProductsPage() {
       Object.entries(form).forEach(([key, value]) => {
         if (key === 'imageFiles') {
           Array.from(value || []).forEach((file) => body.append('images', file))
+        } else if (key === 'imageUrls' && editingId) {
+          body.set('images', JSON.stringify(value))
+        } else if (key === 'imageUrls') {
+          return
         } else if (value !== '' && value !== null) {
           body.append(key, value)
         }
@@ -130,6 +134,7 @@ function AdminProductsPage() {
       stock: String(product.stock),
       category: typeof product.category === 'object' ? product.category._id : product.category,
       imageFiles: [],
+      imageUrls: product.images || [],
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -143,7 +148,7 @@ function AdminProductsPage() {
       setError('Each product image must be 5 MB or smaller.')
       return
     }
-    if (form.imageFiles.length + selectedFiles.length > 8) {
+    if (form.imageUrls.length + form.imageFiles.length + selectedFiles.length > 8) {
       setError('A product can have at most 8 images.')
       return
     }
@@ -165,8 +170,23 @@ function AdminProductsPage() {
             <label className="space-y-1.5 text-xs font-semibold">Stock<Input name="stock" type="number" min="0" step="1" value={form.stock} onChange={updateField} className="mt-1" /></label>
             <SelectField label="Category" labelClassName="text-xs" value={form.category} options={(categoriesQuery.data || []).map((category) => ({ value: category._id, label: category.name }))} onChange={(category) => setForm((current) => ({ ...current, category }))} placeholder="Choose category" className="gap-1.5" />
             <label className="space-y-1.5 text-xs font-semibold sm:col-span-2">Description<Textarea required name="description" rows="3" value={form.description} onChange={updateField} className="mt-1" /></label>
-            <label className="cursor-pointer space-y-1.5 text-xs font-semibold sm:col-span-2">Product photos<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={addImageFiles} className="mt-1 block min-h-11 w-full cursor-pointer rounded-xl border border-stone-300 bg-white p-2 text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-emerald-800 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-emerald-900 dark:border-stone-700 dark:bg-stone-950" /><span className="block font-normal text-stone-500">Choose up to 8 images (JPEG, PNG, WebP, or GIF), 5 MB each. Existing photos are retained when editing.</span></label>
+            <label className="cursor-pointer space-y-1.5 text-xs font-semibold sm:col-span-2">Product photos<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addImageFiles} className="mt-1 block min-h-11 w-full cursor-pointer rounded-xl border border-stone-300 bg-white p-2 text-sm file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-emerald-800 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-emerald-900 dark:border-stone-700 dark:bg-stone-950" /><span className="block font-normal text-stone-500">Choose up to 8 images (JPEG, PNG, or WebP), 5 MB each. Existing photos are retained unless removed below.</span></label>
           </div>
+          {form.imageUrls.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {form.imageUrls.map((imageUrl) => (
+                <div key={imageUrl} className="relative size-20 overflow-hidden rounded-lg border border-stone-300 dark:border-stone-700">
+                  <img src={resolveImageUrl(imageUrl)} alt="Current product" className="size-full object-cover" />
+                  <button
+                    type="button"
+                    aria-label="Remove current product image"
+                    onClick={() => setForm((current) => ({ ...current, imageUrls: current.imageUrls.filter((url) => url !== imageUrl) }))}
+                    className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-stone-950/80 text-xs font-bold text-white"
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
           <FileAttachmentList files={form.imageFiles} onRemove={(index) => setForm((current) => ({ ...current, imageFiles: current.imageFiles.filter((_, fileIndex) => fileIndex !== index) }))} />
           {error && <Alert variant="destructive">{error}</Alert>}
           <button disabled={saveProduct.isPending || !form.category} className="cursor-pointer inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-800 px-4 text-sm font-bold text-white disabled:opacity-50"><Plus className="size-4" />{saveProduct.isPending ? 'Saving…' : editingId ? 'Save product' : 'Create product'}</button>

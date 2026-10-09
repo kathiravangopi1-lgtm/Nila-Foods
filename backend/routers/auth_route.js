@@ -39,7 +39,7 @@ router.post('/verify-reset-otp', otpVerifyLimiter, verifyResetOtp);
 router.post('/reset-password', otpVerifyLimiter, resetPassword);
 router.get('/me', requireAuth, getCurrentUser);
 router.patch('/me', requireAuth, updateCurrentUser);
-router.post('/change-password', requireAuth, changePassword);
+router.post('/change-password', requireAuth, authRequestLimiter, changePassword);
 router.get('/addresses', requireAuth, getAddresses);
 router.post('/addresses', requireAuth, createAddress);
 router.patch('/addresses/:addressId', requireAuth, updateAddress);

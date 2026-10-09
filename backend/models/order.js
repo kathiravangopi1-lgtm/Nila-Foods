@@ -53,5 +53,6 @@ orderSchema.index(
   { unique: true, partialFilterExpression: { checkoutSessionId: { $type: 'string' } } },
 );
 orderSchema.index({ razorpayOrderId: 1 }, { unique: true, sparse: true });
+orderSchema.index({ razorpayPaymentId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.models.Order || mongoose.model('Order', orderSchema);

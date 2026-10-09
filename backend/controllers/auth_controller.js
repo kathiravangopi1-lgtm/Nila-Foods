@@ -201,7 +201,11 @@ const getCurrentUser = async (req, res, next) => {
   }
 };
 
-const updateCurrentUser = async (req, res, next) => {
+const createUpdateCurrentUserHandler = ({
+  User = userModel,
+  service = otpService,
+  sendVerificationEmail = sendEmailVerificationOTP,
+} = {}) => async (req, res, next) => {
   const body = req.body || {};
   const allowedFields = ['name', 'email', 'phone', 'emailOffersOptIn', 'restockProductIds'];
   const fields = Object.keys(body);
@@ -239,27 +243,48 @@ const updateCurrentUser = async (req, res, next) => {
         return res.status(400).json({ error: 'Restock preferences can include only active products.' });
       }
     }
-    const user = await userModel.findById(req.user.id);
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User account not found.' });
 
     if (body.name !== undefined) user.name = body.name.trim();
-    if (body.email !== undefined) user.email = body.email.trim().toLowerCase();
+    const updatedEmail = body.email === undefined ? user.email : body.email.trim().toLowerCase();
+    const emailChanged = updatedEmail !== user.email;
+    if (emailChanged) {
+      user.email = updatedEmail;
+      user.emailVerified = false;
+    }
     if (body.phone !== undefined) user.phone = body.phone.trim();
     if (body.emailOffersOptIn !== undefined) user.emailOffersOptIn = body.emailOffersOptIn;
     if (body.restockProductIds !== undefined) user.restockProductIds = [...new Set(body.restockProductIds)];
     await user.save();
+    if (emailChanged) {
+      await service.issue({
+        email: user.email,
+        userId: user._id,
+        purpose: 'EMAIL_VERIFICATION',
+        sendEmail: sendVerificationEmail,
+      });
+    }
 
     return res.status(200).json({
-      message: 'Profile updated successfully.',
+      message: emailChanged
+        ? 'Profile updated. Verify your new email address before signing in again.'
+        : 'Profile updated successfully.',
+      requiresEmailVerification: emailChanged,
       data: toSafeUser(user),
     });
   } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     if (error.code === 11000) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
     return next(error);
   }
 };
+
+const updateCurrentUser = createUpdateCurrentUserHandler();
 
 const changePassword = async (req, res, next) => {
   const { currentPassword, newPassword } = req.body || {};
@@ -310,4 +335,5 @@ module.exports = {
     changePassword,
     phoneLoginCandidates,
     createRegisterHandler,
+    createUpdateCurrentUserHandler,
 };
