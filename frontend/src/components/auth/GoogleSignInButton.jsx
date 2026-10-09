@@ -26,7 +26,7 @@ function GoogleSignInButton({ onCredential }) {
         theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline',
         size: 'large',
         shape: 'rectangular',
-        text: 'continue_with',
+        text: 'signin_with',
         width: Math.min(buttonRef.current.clientWidth, 400),
       })
     }

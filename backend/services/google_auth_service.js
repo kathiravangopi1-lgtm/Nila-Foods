@@ -16,9 +16,13 @@ const verifyGoogleIdToken = async (idToken) => {
       idToken,
       audience: GOOGLE_CLIENT_ID,
     });
-  } catch {
-    const error = new Error('Google could not verify this sign-in. Please try again.');
+  } catch (verificationError) {
+    const audienceMismatch = /audience|recipient|authorized party/i.test(verificationError.message || '');
+    const error = new Error(audienceMismatch
+      ? 'Google sign-in is misconfigured. The frontend and backend must use the same Google OAuth Web client ID.'
+      : 'Google could not verify this sign-in. Check that the production storefront origin is authorized in Google Cloud and try again.');
     error.statusCode = 401;
+    error.apiCode = audienceMismatch ? 'GOOGLE_CLIENT_ID_MISMATCH' : 'GOOGLE_TOKEN_VERIFICATION_FAILED';
     throw error;
   }
 

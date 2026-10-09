@@ -1,6 +1,6 @@
 const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
 const normalizedApiUrl = (configuredApiUrl || '/api').replace(/\/+$/, '')
-const API_BASE_URL = /\/api$/i.test(normalizedApiUrl)
+export const API_BASE_URL = /\/api$/i.test(normalizedApiUrl)
   ? normalizedApiUrl
   : `${normalizedApiUrl}/api`
 

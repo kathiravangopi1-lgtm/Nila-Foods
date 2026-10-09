@@ -7,6 +7,20 @@ const { verifyGoogleIdToken } = require('../services/google_auth_service');
 
 const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
+const phoneLoginCandidates = (value) => {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return [];
+
+  const candidates = new Set([digits]);
+  if (digits.startsWith('91') && digits.length === 12) candidates.add(digits.slice(2));
+  if (digits.length === 10) candidates.add(`91${digits}`);
+  if (digits.startsWith('0091') && digits.length === 14) candidates.add(digits.slice(4));
+
+  return [...candidates].map((candidate) => ({
+    phone: new RegExp(`^\\+?[\\s().-]*${candidate.split('').join('[\\s().-]*')}[\\s().-]*$`),
+  }));
+};
+
 const toSafeUser = (user) => ({
   id: user._id,
   name: user.name,
@@ -18,17 +32,25 @@ const toSafeUser = (user) => ({
 });
 
 const login = async (req, res, next) => {
-  const { email, password } = req.body || {};
+  const { email, identifier, password } = req.body || {};
+  const loginIdentifier = typeof identifier === 'string' ? identifier.trim() : (
+    typeof email === 'string' ? email.trim() : ''
+  );
+  const isEmailLogin = isEmail(loginIdentifier);
   if (
-    typeof email !== 'string' || !isEmail(email.trim())
+    !loginIdentifier
+    || (!isEmailLogin && !phoneLoginCandidates(loginIdentifier).length)
     || typeof password !== 'string' || !password
     || Buffer.byteLength(password, 'utf8') > 72
   ) {
-    return res.status(400).json({ error: 'A valid email and password are required.' });
+    return res.status(400).json({ error: 'A valid email address or phone number and password are required.' });
   }
 
   try {
-    const user = await userModel.findOne({ email: email.trim().toLowerCase() }).select('+password');
+    const matchingUsers = isEmailLogin
+      ? [await userModel.findOne({ email: loginIdentifier.toLowerCase() }).select('+password')].filter(Boolean)
+      : await userModel.find({ $or: phoneLoginCandidates(loginIdentifier) }).select('+password').limit(2);
+    const user = matchingUsers.length === 1 ? matchingUsers[0] : null;
     if (!user || !await verifyPassword(password, user.password)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -255,4 +277,5 @@ module.exports = {
     getCurrentUser,
     updateCurrentUser,
     changePassword,
+    phoneLoginCandidates,
 };

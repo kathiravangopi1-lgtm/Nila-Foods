@@ -11,7 +11,7 @@ function LoginPage() {
   const { login, googleLogin, restoreError } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [email, setEmail] = useState('')
+  const [loginIdentifier, setLoginIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -31,7 +31,7 @@ function LoginPage() {
     setError('')
     setIsSubmitting(true)
     try {
-      const user = await login(email, password)
+      const user = await login(loginIdentifier, password)
       finishLogin(user)
     } catch (loginError) {
       setError(loginError.message)
@@ -89,16 +89,16 @@ function LoginPage() {
 
         <form onSubmit={submitLogin} className="mt-8 space-y-5">
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-200">Email address</label>
+            <label htmlFor="login-identifier" className="mb-2 block text-sm font-semibold text-stone-700 dark:text-stone-200">Email address or phone number</label>
             <Input
-              id="email"
-              type="email"
-              autoComplete="email"
+              id="login-identifier"
+              type="text"
+              autoComplete="username"
               required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              value={loginIdentifier}
+              onChange={(event) => setLoginIdentifier(event.target.value)}
               className="h-12 px-4"
-              placeholder="you@example.com"
+              placeholder="you@example.com or +91 98765 43210"
             />
           </div>
           <PasswordField

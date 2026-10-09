@@ -16,7 +16,7 @@ Copy `.env.example` to `.env`, then set `MONGO_URI` and a unique `JWT_SECRET` of
 ## Authentication
 
 - `POST /api/auth/register` — accepts name, email, password, optional phone, and optional `emailOffersOptIn` consent; passwords must be 8-72 characters/UTF-8 bytes. New accounts always get the `customer` role.
-- `POST /api/auth/login` — accepts email and password; returns a JWT and a safe user object. Access tokens last 7 days by default; configure `JWT_EXPIRES_IN` to change this. Users must sign in again after a token expires.
+- `POST /api/auth/login` — accepts an email address or phone number and password; returns a JWT and a safe user object. Phone sign-in accepts common punctuation/spacing and Indian numbers with or without the `+91` country code. Access tokens last 7 days by default; configure `JWT_EXPIRES_IN` to change this. Users must sign in again after a token expires.
 - `POST /api/auth/google` — accepts the Google Identity Services ID token credential, verifies it against `GOOGLE_CLIENT_ID`, and returns the same app JWT and safe user object. Google sign-in links an existing account only when Google has verified the same email.
 - `GET /api/auth/me` — returns current account details.
 - `PATCH /api/auth/me` — authenticated; updates profile fields, email-offer consent, or up to 100 active product IDs in `restockProductIds`. Email addresses are normalized to lowercase and must be unique.
@@ -34,9 +34,23 @@ Location options are served from the backend's bundled `country-state-city` data
 
 Send the login JWT in the Authorization header using the bearer-token scheme for protected routes.
 
-To enable Google sign-in, create a Google OAuth **Web application** client ID. Add the site origin to its Authorized JavaScript origins (for local development, add both `http://localhost:5173` and `http://127.0.0.1:5173` if you use both). Set the same client ID as `GOOGLE_CLIENT_ID` in `backend/.env` and `VITE_GOOGLE_CLIENT_ID` in `frontend/.env`; restart both development servers after changing the values. The client ID is public; never put a Google client secret in frontend configuration. Google-only accounts can sign in with Google and do not have a password for the current-password change flow.
+To enable Google sign-in, create a Google OAuth **Web application** client ID. Add every exact storefront origin (scheme and host, no route path) to its Authorized JavaScript origins, including the deployed frontend origin and, for local development, `http://localhost:5173` and `http://127.0.0.1:5173` if used. Set the same client ID as `GOOGLE_CLIENT_ID` on the backend Render service and `VITE_GOOGLE_CLIENT_ID` on the frontend Render service. Redeploy/restart both services after changing the values; Vite embeds its value at build time. The client ID is public; never put a Google client secret in frontend configuration. Audience-mismatch responses identify the two-client-ID configuration error. Google-only accounts can sign in with Google and do not have a password for the current-password change flow.
 
-To provision the single admin account, edit placeholder values at the top of `scripts/create_admin.js` and run `npm run create-admin`. Use credentials unique to this app, keep real credentials out of commits, and restore placeholders before committing. The script refuses to provision another admin account.
+To provision the single production admin without a Render shell, run the script from your own computer against the production MongoDB:
+
+1. Copy the production `MONGO_URI` from your backend Render environment into `backend/.env` (which is git-ignored). Back up any existing local `.env` first and restore it after provisioning if needed. Never commit or share this URI.
+2. In PowerShell, from the `backend` directory, set the admin details and run the script:
+
+   ```powershell
+   $env:ADMIN_NAME = 'Your Name'
+   $env:ADMIN_EMAIL = 'you@example.com'
+   $securePassword = Read-Host 'Choose an admin password (12+ characters)' -AsSecureString
+   $env:ADMIN_PASSWORD = [System.Net.NetworkCredential]::new('', $securePassword).Password
+   npm run create-admin
+   Remove-Item Env:ADMIN_NAME, Env:ADMIN_EMAIL, Env:ADMIN_PASSWORD
+   ```
+
+The password is prompted rather than placed in shell history. Use a unique password of at least 12 characters. The script refuses to create a second distinct admin; rerunning with the same email updates that account's password. Do not add a public unauthenticated admin-creation endpoint.
 
 ## Catalog
 
