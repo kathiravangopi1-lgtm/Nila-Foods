@@ -6,11 +6,7 @@ import { useAuth } from '@/components/auth/authContext'
 import { useFavorites } from '@/components/favorites/favoritesContext'
 import { useToast } from '@/components/feedback/toastContext'
 import { apiRequest } from '@/lib/api'
-
-function imageUrl(value) {
-  if (!value) return ''
-  return value.startsWith('/uploads/') ? value : value
-}
+import { resolveImageUrl } from '@/lib/format'
 
 function ProductCard({ product }) {
   const navigate = useNavigate()
@@ -57,7 +53,7 @@ function ProductCard({ product }) {
       <Link to={`/products/${product._id}`} className="block">
         <div className="relative aspect-square overflow-hidden rounded-xl bg-emerald-50 dark:bg-stone-800">
           {product.images?.[0] ? (
-            <img src={imageUrl(product.images[0])} alt={product.name} loading="lazy" className="size-full object-cover transition duration-300 group-hover:scale-105" />
+            <img src={resolveImageUrl(product.images[0])} alt={product.name} loading="lazy" className="size-full object-cover transition duration-300 group-hover:scale-105" />
           ) : (
             <div className="grid size-full place-items-center text-4xl text-emerald-800/40">🌿</div>
           )}

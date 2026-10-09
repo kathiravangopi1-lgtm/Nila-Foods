@@ -11,11 +11,15 @@ npm install
 npm run dev
 ```
 
-Copy `.env.example` to `.env`, then set `MONGO_URI` and a unique `JWT_SECRET` of at least 32 characters. `PORT`, `JWT_EXPIRES_IN`, `DEFAULT_CURRENCY`, and comma-separated `CORS_ORIGIN` values are optional. If `CORS_ORIGIN` is omitted, CORS allows any origin.
+Copy `.env.example` to `.env`, then set `MONGO_URI` and a unique `JWT_SECRET` of at least 32 characters. Configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_FROM_NAME` to enable email verification and password reset. `OTP_HASH_SECRET` is optional; it defaults to `JWT_SECRET`. `PORT`, `JWT_EXPIRES_IN`, `DEFAULT_CURRENCY`, and comma-separated `CORS_ORIGIN` values are optional. If `CORS_ORIGIN` is omitted, CORS allows any origin.
 
 ## Authentication
 
-- `POST /api/auth/register` — accepts name, email, password, optional phone, and optional `emailOffersOptIn` consent; passwords must be 8-72 characters/UTF-8 bytes. New accounts always get the `customer` role.
+- `POST /api/auth/register` — accepts name, email, password, optional phone, and optional `emailOffersOptIn` consent; passwords must be 8-72 characters/UTF-8 bytes. New accounts always get the `customer` role and must verify their email before password sign-in.
+- `POST /api/auth/verify-email` and `POST /api/auth/resend-email-otp` — verify a new account or send another code. Codes expire after 10 minutes, allow at most 5 attempts, and can be resent once per 60 seconds.
+- `POST /api/auth/forgot-password` — starts the generic-response password reset flow.
+- `POST /api/auth/verify-reset-otp` — verifies the reset code and returns a short-lived single-use reset authorization.
+- `POST /api/auth/reset-password` — consumes the reset authorization and sets a new password.
 - `POST /api/auth/login` — accepts an email address or phone number and password; returns a JWT and a safe user object. Phone sign-in accepts common punctuation/spacing and Indian numbers with or without the `+91` country code. Access tokens last 7 days by default; configure `JWT_EXPIRES_IN` to change this. Users must sign in again after a token expires.
 - `POST /api/auth/google` — accepts the Google Identity Services ID token credential, verifies it against `GOOGLE_CLIENT_ID`, and returns the same app JWT and safe user object. Google sign-in links an existing account only when Google has verified the same email.
 - `GET /api/auth/me` — returns current account details.
@@ -35,6 +39,8 @@ Location options are served from the backend's bundled `country-state-city` data
 Send the login JWT in the Authorization header using the bearer-token scheme for protected routes.
 
 To enable Google sign-in, create a Google OAuth **Web application** client ID. Add every exact storefront origin (scheme and host, no route path) to its Authorized JavaScript origins, including the deployed frontend origin and, for local development, `http://localhost:5173` and `http://127.0.0.1:5173` if used. Set the same client ID as `GOOGLE_CLIENT_ID` on the backend Render service and `VITE_GOOGLE_CLIENT_ID` on the frontend Render service. Redeploy/restart both services after changing the values; Vite embeds its value at build time. The client ID is public; never put a Google client secret in frontend configuration. Audience-mismatch responses identify the two-client-ID configuration error. Google-only accounts can sign in with Google and do not have a password for the current-password change flow.
+
+For email OTP on Render, add `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_FROM_NAME` to the **backend** service environment and redeploy. Verify the sending domain/address with Resend first. Keep `RESEND_API_KEY` server-side; do not add it to the frontend service or any `VITE_` variable.
 
 To provision the single production admin without a Render shell, run the script from your own computer against the production MongoDB:
 

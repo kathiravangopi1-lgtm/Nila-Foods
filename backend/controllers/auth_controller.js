@@ -4,6 +4,10 @@ const Product = require('../models/product');
 const { hashPassword, verifyPassword } = require('../utils/password');
 const { generateAccessToken } = require('../utils/jwt');
 const { verifyGoogleIdToken } = require('../services/google_auth_service');
+const { createOtpService } = require('../services/otp_service');
+const { sendEmailVerificationOTP } = require('../services/email_service');
+
+const otpService = createOtpService();
 
 const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -54,6 +58,12 @@ const login = async (req, res, next) => {
     if (!user || !await verifyPassword(password, user.password)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+    if (user.emailVerified === false) {
+      return res.status(403).json({
+        error: 'Verify your email before signing in.',
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+      });
+    }
 
     const token = generateAccessToken(user);
     return res.status(200).json({
@@ -78,15 +88,12 @@ const googleLogin = async (req, res, next) => {
       $or: [{ googleId: identity.googleId }, { email: identity.email }],
     }).select('+googleId');
 
-    if (user?.googleId && user.googleId !== identity.googleId) {
-      return res.status(409).json({ error: 'This email is linked to a different Google account.' });
-    }
-
     if (!user) {
       user = new userModel({
         name: identity.name,
         email: identity.email,
         googleId: identity.googleId,
+        emailVerified: true,
         role: 'customer',
       });
       try {
@@ -98,10 +105,13 @@ const googleLogin = async (req, res, next) => {
         }).select('+googleId');
         if (!user) throw error;
       }
-    } else if (!user.googleId) {
-      user.googleId = identity.googleId;
-      await user.save();
     }
+    if (user.googleId && user.googleId !== identity.googleId) {
+      return res.status(409).json({ error: 'This email is linked to a different Google account.' });
+    }
+    if (!user.googleId) user.googleId = identity.googleId;
+    user.emailVerified = true;
+    await user.save();
 
     return res.status(200).json({
       message: 'Google login successful',
@@ -113,7 +123,12 @@ const googleLogin = async (req, res, next) => {
   }
 };
 
-const register = async (req, res, next) => {
+const createRegisterHandler = ({
+  User = userModel,
+  passwordHasher = hashPassword,
+  service = otpService,
+  sendVerificationEmail = sendEmailVerificationOTP,
+} = {}) => async (req, res, next) => {
   const { name, email, password, phone, emailOffersOptIn = false } = req.body || {};
   if (
     typeof name !== 'string' || !name.trim()
@@ -130,28 +145,44 @@ const register = async (req, res, next) => {
   }
 
   try {
-    const hashedPassword = await hashPassword(password);
-    const user = new userModel({
+    const emailAddress = email.trim().toLowerCase();
+    if (await User.findOne({ email: emailAddress })) {
+      return res.status(409).json({ error: 'An account with this email already exists' });
+    }
+    const user = new User({
       name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password: hashedPassword,
+      email: emailAddress,
+      password: await passwordHasher(password),
+      emailVerified: false,
       phone,
       emailOffersOptIn,
       role: 'customer',
     });
     const savedUser = await user.save();
+    await service.issue({
+      email: savedUser.email,
+      userId: savedUser._id,
+      purpose: 'EMAIL_VERIFICATION',
+      sendEmail: sendVerificationEmail,
+    });
 
     return res.status(201).json({
-      message: 'User registered successfully',
-      user: toSafeUser(savedUser),
+      message: 'Registration successful. Verify your email to finish creating your account.',
+      requiresEmailVerification: true,
+      email: savedUser.email,
     });
   } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     if (error.code === 11000) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
     return next(error);
   }
 };
+
+const register = createRegisterHandler();
 
 const getCurrentUser = async (req, res, next) => {
   try {
@@ -278,4 +309,5 @@ module.exports = {
     updateCurrentUser,
     changePassword,
     phoneLoginCandidates,
+    createRegisterHandler,
 };

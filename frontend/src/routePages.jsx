@@ -11,6 +11,8 @@ export const OrderDetailsPage = lazy(() => import('./pages/store/OrderDetailsPag
 export const PagePlaceholder = lazy(() => import('./pages/PagePlaceholder'))
 export const LoginPage = lazy(() => import('./pages/LoginPage'))
 export const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+export const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
+export const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 export const AccountPage = lazy(() => import('./pages/AccountPage'))
 export const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage'))
 export const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))

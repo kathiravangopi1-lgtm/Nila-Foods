@@ -25,8 +25,8 @@ function RegisterPage() {
     }
     setBusy(true)
     try {
-      await register({ name: form.name, email: form.email, phone: form.phone, password: form.password, emailOffersOptIn })
-      navigate('/login', { replace: true, state: { registered: true } })
+      const result = await register({ name: form.name, email: form.email, phone: form.phone, password: form.password, emailOffersOptIn })
+      navigate(`/verify-email?email=${encodeURIComponent(result.email)}`, { replace: true, state: { email: result.email } })
     } catch (registrationError) {
       setError(registrationError.message)
     } finally {

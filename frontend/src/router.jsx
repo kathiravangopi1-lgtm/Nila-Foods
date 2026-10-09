@@ -16,6 +16,8 @@ import {
   ChangePasswordPage,
   CheckoutPage,
   FavoritesPage,
+  EmailVerificationPage,
+  ForgotPasswordPage,
   HomePage,
   LoginPage,
   OrderDetailsPage,
@@ -49,6 +51,8 @@ export const router = createBrowserRouter([
         children: [
           { path: 'login', element: lazyPage(LoginPage) },
           { path: 'register', element: lazyPage(RegisterPage) },
+          { path: 'verify-email', element: lazyPage(EmailVerificationPage) },
+          { path: 'forgot-password', element: lazyPage(ForgotPasswordPage) },
         ],
       },
       {

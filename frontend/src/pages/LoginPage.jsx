@@ -14,6 +14,7 @@ function LoginPage() {
   const [loginIdentifier, setLoginIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const finishLogin = useCallback((user) => {
@@ -29,12 +30,14 @@ function LoginPage() {
   const submitLogin = async (event) => {
     event.preventDefault()
     setError('')
+    setNeedsEmailVerification(false)
     setIsSubmitting(true)
     try {
       const user = await login(loginIdentifier, password)
       finishLogin(user)
     } catch (loginError) {
       setError(loginError.message)
+      setNeedsEmailVerification(loginError.code === 'EMAIL_VERIFICATION_REQUIRED')
     } finally {
       setIsSubmitting(false)
     }
@@ -48,6 +51,7 @@ function LoginPage() {
       finishLogin(user)
     } catch (loginError) {
       setError(loginError.message)
+      setNeedsEmailVerification(loginError.code === 'EMAIL_VERIFICATION_REQUIRED')
     } finally {
       setIsSubmitting(false)
     }
@@ -111,6 +115,7 @@ function LoginPage() {
             leadingIcon={LockKeyhole}
           />
           {(error || restoreError) && <Alert variant="destructive">{error || restoreError}</Alert>}
+          {needsEmailVerification && <Link to={`/verify-email?email=${encodeURIComponent(loginIdentifier)}`} className="block text-sm font-semibold text-emerald-800 underline dark:text-emerald-300">Verify your email address</Link>}
           <button
             type="submit"
             disabled={isSubmitting}
@@ -129,6 +134,9 @@ function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-stone-500 dark:text-stone-400">
           New to Nila Foods? <Link to="/register" className="font-bold text-emerald-800 hover:underline dark:text-emerald-300">Create an account</Link>
+        </p>
+        <p className="mt-3 text-center text-sm">
+          <Link to="/forgot-password" className="font-semibold text-emerald-800 hover:underline dark:text-emerald-300">Forgot your password?</Link>
         </p>
       </div>
     </section>

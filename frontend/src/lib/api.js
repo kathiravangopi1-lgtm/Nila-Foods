@@ -36,6 +36,7 @@ export async function apiRequest(path, { token, ...options } = {}) {
     const error = new Error(errorMessage)
     error.status = response.status
     error.code = payload.code
+    error.retryAfterSeconds = payload.retryAfterSeconds
     throw error
   }
 

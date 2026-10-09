@@ -14,6 +14,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be set to at least 32 characters in backend/.env.');
 }
 var app = express();
+if (process.env.RENDER) app.set('trust proxy', 1);
 const healthRouter = require('./routers/heath_route');
 const authRouter = require('./routers/auth_route');
 const productRouter = require('./routers/fetch_products');

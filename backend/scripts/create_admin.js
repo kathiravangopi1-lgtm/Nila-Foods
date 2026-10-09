@@ -38,6 +38,7 @@ const createAdmin = async () => {
     user.email = email;
     user.password = await hashPassword(ADMIN_PASSWORD);
     user.role = 'admin';
+    user.emailVerified = true;
     await user.save();
 
     console.log('Admin account created or updated.');
